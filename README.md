@@ -1,6 +1,6 @@
 # Purpl Swift
 
-English | [한국어](README.ko.md)
+English | [한국어](README.ko.md) | [Documentation](https://purpl.sh/en/documentation)
 
 Purpl is a Swift 6 SDK for StoreKit 2 purchases, entitlement checks, restoration, and SwiftUI paywalls.
 

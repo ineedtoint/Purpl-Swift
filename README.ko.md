@@ -1,6 +1,6 @@
 # Purpl Swift
 
-[English](README.md) | 한국어
+[English](README.md) | 한국어 | [Documentation](https://purpl.sh/ko/documentation)
 
 Purpl은 StoreKit 2 구매, 권한 확인, 복원과 SwiftUI 페이월을 제공하는 Swift 6 SDK입니다.
 
