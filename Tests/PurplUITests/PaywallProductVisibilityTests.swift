@@ -85,6 +85,26 @@ struct PaywallProductVisibilityTests {
         #expect(visibleProducts.map(\.id) == ["test.product.yearly"])
     }
 
+    /// 원격 제목만 지정한 상품을 사용자 지정 제목 구성으로 인식하는지 확인
+    @Test
+    func recognizesRemoteTitleAsConfiguredTitle() {
+        let context = PaywallProductContext(
+            catalogProduct: PurchaseProduct(
+                productIdentifier: "test.product.monthly"
+            ),
+            storeProduct: nil,
+            displayTitle: "Monthly",
+            displayDescription: nil,
+            availability: .unavailable,
+            isSelected: false,
+            isOwned: false,
+            isEntitlementActive: false,
+            purchaseResolutionState: nil
+        )
+
+        #expect(context.hasConfiguredTitle)
+    }
+
     /// 현재 선택 상품을 사용할 수 없으면 첫 사용 가능 상품을 선택하는지 확인
     @Test
     func selectsFirstAvailableProduct() {

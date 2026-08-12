@@ -39,6 +39,11 @@ public struct PaywallProductContext: Identifiable, Sendable {
     /// 원격 페이월에서 해결한 선택 표시 설명
     public let displayDescription: String?
 
+    /// 로컬 또는 원격 구성에서 상품 제목을 직접 지정했는지 여부
+    var hasConfiguredTitle: Bool {
+        displayTitle != nil || catalogProduct.titleResource != nil
+    }
+
     /// StoreKit 상품 사용 가능 상태
     public let availability: PaywallProductAvailability
 
