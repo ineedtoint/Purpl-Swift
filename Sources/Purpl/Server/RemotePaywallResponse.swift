@@ -18,8 +18,39 @@ struct RemotePaywallResponse: Codable, Sendable {
     /// 원격 앱 전체 구매 구성
     let purchaseConfiguration: RemotePurchaseConfiguration
 
+    /// 요청 로케일에 맞게 해결한 표시 내용
+    let localization: RemotePaywallLocalization
+
+    /// Apple 페이월 정책
+    let policy: RemotePaywallPolicy
+
     /// 원격 구성의 마지막 수정 시각
     let updatedAt: Date
+
+    /// 서버와 캐시가 공유하는 원격 페이월 응답 생성
+    init(
+        paywallConfiguration: RemotePaywallConfiguration,
+        catalog: RemotePurchaseCatalog,
+        purchaseConfiguration: RemotePurchaseConfiguration,
+        localization: RemotePaywallLocalization = RemotePaywallLocalization(
+            localeIdentifier: "en-US",
+            products: [],
+            autoRenewalNotice: nil
+        ),
+        policy: RemotePaywallPolicy = RemotePaywallPolicy(
+            privacyPolicyURL: nil,
+            termsOfServiceURL:
+                "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/"
+        ),
+        updatedAt: Date
+    ) {
+        self.paywallConfiguration = paywallConfiguration
+        self.catalog = catalog
+        self.purchaseConfiguration = purchaseConfiguration
+        self.localization = localization
+        self.policy = policy
+        self.updatedAt = updatedAt
+    }
 
     /// 현재 권한 확인 방식에 맞는 공개 페이월 구성으로 변환
     /// - Parameters:
@@ -78,6 +109,18 @@ struct RemotePaywallResponse: Codable, Sendable {
             catalog: catalog,
             defaultProductIdentifier:
                 paywallConfiguration.defaultProductIdentifier,
+            productContents: localization.products.map { product in
+                ResolvedPaywallProductContent(
+                    productIdentifier: product.productIdentifier,
+                    title: product.title,
+                    description: product.description
+                )
+            },
+            autoRenewalNotice: localization.autoRenewalNotice,
+            privacyPolicyURL: try policy.privacyPolicyURL.map { value in
+                try value.validatedURL()
+            },
+            termsOfServiceURL: try policy.termsOfServiceURL.validatedURL(),
             updatedAt: updatedAt
         )
     }
@@ -129,6 +172,50 @@ struct RemotePaywallResponse: Codable, Sendable {
                 throw PurchasesError.invalidServerResponse
             }
         }
+    }
+}
+
+/// 서버와 캐시가 공유하는 해결된 페이월 현지화
+struct RemotePaywallLocalization: Codable, Sendable {
+    /// 실제 선택된 로케일 식별자
+    let localeIdentifier: String
+
+    /// 상품별 표시 내용
+    let products: [RemotePaywallProductContent]
+
+    /// Apple 자동 갱신 안내 문구
+    let autoRenewalNotice: String?
+}
+
+/// 서버와 캐시가 공유하는 해결된 상품 표시 내용
+struct RemotePaywallProductContent: Codable, Sendable {
+    /// StoreKit 상품 식별자
+    let productIdentifier: String
+
+    /// 선택 표시 제목
+    let title: String?
+
+    /// 선택 표시 설명
+    let description: String?
+}
+
+/// 서버와 캐시가 공유하는 Apple 페이월 정책
+struct RemotePaywallPolicy: Codable, Sendable {
+    /// 개인정보 처리방침 주소 문자열
+    let privacyPolicyURL: String?
+
+    /// 서비스 약관 주소 문자열
+    let termsOfServiceURL: String
+}
+
+private extension String {
+    /// 원격 구성의 필수 HTTPS 주소 검증
+    func validatedURL() throws -> URL {
+        guard let url = URL(string: self), url.scheme == "https" else {
+            throw PurchasesError.invalidServerResponse
+        }
+
+        return url
     }
 }
 

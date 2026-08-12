@@ -101,7 +101,7 @@ PaywallView(paywallIdentifier: "standard") {
 }
 ```
 
-Remote paywall configuration is resolved using the app's bundle identifier and the paywall identifier. StoreKit still handles product loading and purchases.
+Remote paywall configuration is resolved using the app's bundle identifier, paywall identifier, and current locale. Purpl supplies localized product content, renewal notices, and policy links, while StoreKit still handles product loading, pricing, availability, and purchases.
 
 ## Presentation ownership
 

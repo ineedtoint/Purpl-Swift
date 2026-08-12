@@ -34,6 +34,10 @@ struct RemotePaywallResponseTests {
                 .entitlementIdentifiers == ["access"]
         )
         #expect(configuration.defaultProductIdentifier == "test.subscription.yearly")
+        #expect(configuration.productContents.first?.title == "연간")
+        #expect(configuration.autoRenewalNotice == "자동 갱신 안내")
+        #expect(configuration.privacyPolicyURL?.absoluteString == "https://example.com/privacy")
+        #expect(configuration.termsOfServiceURL.absoluteString == "https://example.com/terms")
     }
 
     /// StoreKit 권한 모드에서 로컬 카탈로그에 없는 원격 상품을 거부하는지 확인
@@ -120,6 +124,21 @@ struct RemotePaywallResponseTests {
                     )
                 ]
             ),
+            localization: RemotePaywallLocalization(
+                localeIdentifier: "ko",
+                products: [
+                    RemotePaywallProductContent(
+                        productIdentifier: "test.subscription.yearly",
+                        title: "연간",
+                        description: "프리미엄 기능"
+                    )
+                ],
+                autoRenewalNotice: "자동 갱신 안내"
+            ),
+            policy: RemotePaywallPolicy(
+                privacyPolicyURL: "https://example.com/privacy",
+                termsOfServiceURL: "https://example.com/terms"
+            ),
             updatedAt: Date(timeIntervalSince1970: 1_786_412_800)
         )
     }
@@ -158,17 +177,34 @@ struct RemotePaywallCacheTests {
             try? FileManager.default.removeItem(at: directoryURL)
         }
 
-        try await cache.save(remotePaywall, paywallIdentifier: "standard")
-        let cachedPaywall = await cache.load(paywallIdentifier: "standard")
+        try await cache.save(
+            remotePaywall,
+            paywallIdentifier: "standard",
+            localeIdentifier: "ko"
+        )
+        let cachedPaywall = await cache.load(
+            paywallIdentifier: "standard",
+            localeIdentifier: "ko"
+        )
 
         #expect(cachedPaywall?.paywallConfiguration.identifier == "standard")
         #expect(
             cachedPaywall?.purchaseConfiguration.products.first?
                 .entitlementIdentifiers == ["access"]
         )
+        #expect(await cache.load(
+            paywallIdentifier: "standard",
+            localeIdentifier: "en-US"
+        ) == nil)
 
-        await cache.remove(paywallIdentifier: "standard")
+        await cache.remove(
+            paywallIdentifier: "standard",
+            localeIdentifier: "ko"
+        )
 
-        #expect(await cache.load(paywallIdentifier: "standard") == nil)
+        #expect(await cache.load(
+            paywallIdentifier: "standard",
+            localeIdentifier: "ko"
+        ) == nil)
     }
 }

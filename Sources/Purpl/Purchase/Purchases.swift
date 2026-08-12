@@ -150,8 +150,24 @@ public final class Purchases: Sendable {
     public func paywallConfiguration(
         for paywallIdentifier: String
     ) async throws -> ResolvedPaywallConfiguration {
+        try await paywallConfiguration(
+            for: paywallIdentifier,
+            localeIdentifier: Locale.current.identifier
+        )
+    }
+
+    /// Purpl에서 현재 로케일에 맞는 페이월 구매 구성 조회
+    /// - Parameters:
+    ///   - paywallIdentifier: Purpl 웹에서 정의한 페이월 구성 식별자
+    ///   - localeIdentifier: 기기의 현재 로케일 식별자
+    /// - Returns: 현재 권한 확인 방식에 맞게 해석한 앱 구매 구성
+    public func paywallConfiguration(
+        for paywallIdentifier: String,
+        localeIdentifier: String
+    ) async throws -> ResolvedPaywallConfiguration {
         if let cachedConfiguration = await remotePaywallCache.load(
-            paywallIdentifier: paywallIdentifier
+            paywallIdentifier: paywallIdentifier,
+            localeIdentifier: localeIdentifier
         ) {
             do {
                 let resolvedConfiguration = try cachedConfiguration.resolvedConfiguration(
@@ -162,7 +178,8 @@ public final class Purchases: Sendable {
 
                 Task {
                     await refreshRemotePaywall(
-                        paywallIdentifier: paywallIdentifier
+                        paywallIdentifier: paywallIdentifier,
+                        localeIdentifier: localeIdentifier
                     )
                 }
 
@@ -170,13 +187,15 @@ public final class Purchases: Sendable {
             } catch {
                 // 현재 앱 구성과 맞지 않는 캐시는 제거하고 서버에서 최신 구성을 다시 확인한다.
                 await remotePaywallCache.remove(
-                    paywallIdentifier: paywallIdentifier
+                    paywallIdentifier: paywallIdentifier,
+                    localeIdentifier: localeIdentifier
                 )
             }
         }
 
         return try await fetchRemotePaywall(
-            paywallIdentifier: paywallIdentifier
+            paywallIdentifier: paywallIdentifier,
+            localeIdentifier: localeIdentifier
         )
     }
 
@@ -244,12 +263,14 @@ public final class Purchases: Sendable {
 
     /// 원격 구매 구성 조회와 캐시 저장
     private func fetchRemotePaywall(
-        paywallIdentifier: String
+        paywallIdentifier: String,
+        localeIdentifier: String
     ) async throws -> ResolvedPaywallConfiguration {
         do {
             let remotePaywall = try await coordinator
                 .remotePaywall(
-                    paywallIdentifier: paywallIdentifier
+                    paywallIdentifier: paywallIdentifier,
+                    localeIdentifier: localeIdentifier
                 )
             let resolvedConfiguration = try remotePaywall.resolvedConfiguration(
                 paywallIdentifier: paywallIdentifier,
@@ -259,7 +280,8 @@ public final class Purchases: Sendable {
 
             try? await remotePaywallCache.save(
                 remotePaywall,
-                paywallIdentifier: paywallIdentifier
+                paywallIdentifier: paywallIdentifier,
+                localeIdentifier: localeIdentifier
             )
             return resolvedConfiguration
         } catch {
@@ -268,7 +290,8 @@ public final class Purchases: Sendable {
                 errorCode: _
             ) = error {
                 await remotePaywallCache.remove(
-                    paywallIdentifier: paywallIdentifier
+                    paywallIdentifier: paywallIdentifier,
+                    localeIdentifier: localeIdentifier
                 )
             }
 
@@ -278,10 +301,12 @@ public final class Purchases: Sendable {
 
     /// 다음 페이월 표시를 위한 원격 구매 구성 백그라운드 갱신
     private func refreshRemotePaywall(
-        paywallIdentifier: String
+        paywallIdentifier: String,
+        localeIdentifier: String
     ) async {
         _ = try? await fetchRemotePaywall(
-            paywallIdentifier: paywallIdentifier
+            paywallIdentifier: paywallIdentifier,
+            localeIdentifier: localeIdentifier
         )
     }
 

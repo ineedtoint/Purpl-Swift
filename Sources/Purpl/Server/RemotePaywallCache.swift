@@ -36,9 +36,15 @@ actor RemotePaywallCache {
         self.fileManager = fileManager
     }
 
-    /// 페이월 식별자의 캐시 조회
-    func load(paywallIdentifier: String) -> RemotePaywallResponse? {
-        let fileURL = fileURL(for: paywallIdentifier)
+    /// 페이월과 로케일 식별자의 캐시 조회
+    func load(
+        paywallIdentifier: String,
+        localeIdentifier: String = Locale.current.identifier
+    ) -> RemotePaywallResponse? {
+        let fileURL = fileURL(
+            paywallIdentifier: paywallIdentifier,
+            localeIdentifier: localeIdentifier
+        )
 
         guard let data = try? Data(contentsOf: fileURL) else {
             return nil
@@ -59,21 +65,31 @@ actor RemotePaywallCache {
     /// 원격 페이월 응답 캐시 저장
     func save(
         _ response: RemotePaywallResponse,
-        paywallIdentifier: String
+        paywallIdentifier: String,
+        localeIdentifier: String = Locale.current.identifier
     ) throws {
         try prepareDirectoryIfNeeded()
         let data = try Self.makeEncoder().encode(response)
 
         // 중간 상태 파일이 남지 않도록 같은 볼륨에서 원자적으로 교체한다.
         try data.write(
-            to: fileURL(for: paywallIdentifier),
+            to: fileURL(
+                paywallIdentifier: paywallIdentifier,
+                localeIdentifier: localeIdentifier
+            ),
             options: .atomic
         )
     }
 
-    /// 지정 페이월의 원격 응답 캐시 제거
-    func remove(paywallIdentifier: String) {
-        try? fileManager.removeItem(at: fileURL(for: paywallIdentifier))
+    /// 지정 페이월과 로케일의 원격 응답 캐시 제거
+    func remove(
+        paywallIdentifier: String,
+        localeIdentifier: String = Locale.current.identifier
+    ) {
+        try? fileManager.removeItem(at: fileURL(
+            paywallIdentifier: paywallIdentifier,
+            localeIdentifier: localeIdentifier
+        ))
     }
 
     /// 캐시 디렉터리 생성과 백업 제외 설정
@@ -88,9 +104,16 @@ actor RemotePaywallCache {
         try mutableDirectoryURL.setResourceValues(resourceValues)
     }
 
-    /// 페이월 식별자의 캐시 파일 주소 생성
-    private func fileURL(for paywallIdentifier: String) -> URL {
-        let encodedIdentifier = Data(paywallIdentifier.utf8)
+    /// 페이월과 로케일 식별자의 캐시 파일 주소 생성
+    private func fileURL(
+        paywallIdentifier: String,
+        localeIdentifier: String
+    ) -> URL {
+        let normalizedLocaleIdentifier = localeIdentifier
+            .replacingOccurrences(of: "_", with: "-")
+            .lowercased()
+        let cacheIdentifier = "\(paywallIdentifier):\(normalizedLocaleIdentifier)"
+        let encodedIdentifier = Data(cacheIdentifier.utf8)
             .base64EncodedString()
             .replacingOccurrences(of: "/", with: "_")
             .replacingOccurrences(of: "+", with: "-")

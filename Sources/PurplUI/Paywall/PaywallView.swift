@@ -11,6 +11,9 @@ import SwiftUI
 
 /// 기본 디자인과 사용자 정의 상품 카드를 지원하는 페이월
 public struct PaywallView<MarketingContent: View, ProductContent: View>: View {
+    /// 현재 SwiftUI 로케일
+    @Environment(\.locale) private var locale
+
     /// 기본 페이월 스타일
     private let style: PaywallStyle
 
@@ -146,7 +149,8 @@ public struct PaywallView<MarketingContent: View, ProductContent: View>: View {
                 marketingContent
                 purchaseConfigurationSection
 
-                if model.configuration.autoRenewalNoticeResource != nil {
+                if model.configuration.autoRenewalNoticeResource != nil
+                    || model.configuration.autoRenewalNoticeText != nil {
                     purchasePolicySection
                 }
             }
@@ -162,9 +166,10 @@ public struct PaywallView<MarketingContent: View, ProductContent: View>: View {
                 purchaseFailureAction: purchaseFailureAction
             )
         }
-        .task(id: appAccountToken) {
+        .task(id: "\(appAccountToken?.uuidString ?? "anonymous"):\(locale.identifier)") {
             await model.prepare(
-                applicationAccountIdentifier: appAccountToken
+                applicationAccountIdentifier: appAccountToken,
+                localeIdentifier: locale.identifier
             )
         }
         .onDisappear {
@@ -262,6 +267,13 @@ public struct PaywallView<MarketingContent: View, ProductContent: View>: View {
         if let autoRenewalNoticeResource =
             model.configuration.autoRenewalNoticeResource {
             Text(autoRenewalNoticeResource)
+                .font(.caption2)
+                .foregroundStyle(Color.secondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 16)
+        } else if let autoRenewalNoticeText =
+                    model.configuration.autoRenewalNoticeText {
+            Text(verbatim: autoRenewalNoticeText)
                 .font(.caption2)
                 .foregroundStyle(Color.secondary)
                 .multilineTextAlignment(.center)

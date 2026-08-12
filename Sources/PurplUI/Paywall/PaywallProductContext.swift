@@ -33,6 +33,12 @@ public struct PaywallProductContext: Identifiable, Sendable {
     /// StoreKit에서 불러온 상품
     public let storeProduct: Product?
 
+    /// 원격 페이월에서 해결한 선택 표시 제목
+    public let displayTitle: String?
+
+    /// 원격 페이월에서 해결한 선택 표시 설명
+    public let displayDescription: String?
+
     /// StoreKit 상품 사용 가능 상태
     public let availability: PaywallProductAvailability
 
@@ -52,6 +58,8 @@ public struct PaywallProductContext: Identifiable, Sendable {
     init(
         catalogProduct: PurchaseProduct,
         storeProduct: Product?,
+        displayTitle: String? = nil,
+        displayDescription: String? = nil,
         availability: PaywallProductAvailability,
         isSelected: Bool,
         isOwned: Bool,
@@ -60,6 +68,8 @@ public struct PaywallProductContext: Identifiable, Sendable {
     ) {
         self.catalogProduct = catalogProduct
         self.storeProduct = storeProduct
+        self.displayTitle = displayTitle
+        self.displayDescription = displayDescription
         self.availability = availability
         self.isSelected = isSelected
         self.isOwned = isOwned

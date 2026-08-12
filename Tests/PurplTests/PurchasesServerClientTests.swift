@@ -11,7 +11,7 @@ import Testing
 
 /// Purpl 서버 요청 테스트
 struct PurchasesServerClientTests {
-    /// 공개 Bundle ID와 페이월 식별자만으로 원격 구매 구성을 조회하는지 확인
+    /// 공개 Bundle ID와 페이월 및 로케일 식별자로 원격 구매 구성을 조회하는지 확인
     @Test
     func paywall() async throws {
         let responseData = Data(
@@ -42,6 +42,21 @@ struct PurchasesServerClientTests {
                   }
                 ]
               },
+              "localization": {
+                "localeIdentifier": "ko",
+                "products": [
+                  {
+                    "productIdentifier": "test.subscription.yearly",
+                    "title": "연간",
+                    "description": "프리미엄 기능"
+                  }
+                ],
+                "autoRenewalNotice": "구독은 자동으로 갱신됩니다."
+              },
+              "policy": {
+                "privacyPolicyURL": "https://example.com/privacy",
+                "termsOfServiceURL": "https://example.com/terms"
+              },
               "updatedAt": "2026-08-11T01:02:03.456Z"
             }
             """.utf8
@@ -57,7 +72,8 @@ struct PurchasesServerClientTests {
 
         let paywall = try await serverClient.paywall(
             paywallIdentifier: "standard",
-            bundleIdentifier: "com.example.app"
+            bundleIdentifier: "com.example.app",
+            localeIdentifier: "ko-KR"
         )
         let receivedRequest = try #require(await networkTransport.receivedRequest())
         let queryItems = URLComponents(
@@ -75,6 +91,10 @@ struct PurchasesServerClientTests {
         #expect(
             queryItems?.first(where: { $0.name == "paywallIdentifier" })?.value
                 == "standard"
+        )
+        #expect(
+            queryItems?.first(where: { $0.name == "localeIdentifier" })?.value
+                == "ko-KR"
         )
         #expect(paywall.paywallConfiguration.identifier == "standard")
         #expect(paywall.catalog.productIdentifiers == [

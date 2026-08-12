@@ -97,10 +97,13 @@ actor PurchasesCoordinator {
     }
 
     /// 현재 앱 Bundle ID로 원격 페이월 조회
-    /// - Parameter paywallIdentifier: 조회할 페이월 구성 식별자
+    /// - Parameters:
+    ///   - paywallIdentifier: 조회할 페이월 구성 식별자
+    ///   - localeIdentifier: 기기의 현재 로케일 식별자
     /// - Returns: 공개 Bundle ID로 서버에서 조회한 원격 페이월 응답
     func remotePaywall(
-        paywallIdentifier: String
+        paywallIdentifier: String,
+        localeIdentifier: String
     ) async throws -> RemotePaywallResponse {
         guard let bundleIdentifier = Bundle.main.bundleIdentifier else {
             throw PurchasesError.invalidServerResponse
@@ -108,7 +111,8 @@ actor PurchasesCoordinator {
 
         return try await serverClient.paywall(
             paywallIdentifier: paywallIdentifier,
-            bundleIdentifier: bundleIdentifier
+            bundleIdentifier: bundleIdentifier,
+            localeIdentifier: localeIdentifier
         )
     }
 

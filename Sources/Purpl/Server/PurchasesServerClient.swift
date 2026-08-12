@@ -15,7 +15,8 @@ protocol PurchasesServerClientProtocol: Sendable {
     /// 공개 Bundle ID로 원격 페이월 조회
     func paywall(
         paywallIdentifier: String,
-        bundleIdentifier: String
+        bundleIdentifier: String,
+        localeIdentifier: String
     ) async throws -> RemotePaywallResponse
 
 }
@@ -24,7 +25,8 @@ extension PurchasesServerClientProtocol {
     /// 원격 페이월을 사용하지 않는 테스트 경계의 기본 동작
     func paywall(
         paywallIdentifier: String,
-        bundleIdentifier: String
+        bundleIdentifier: String,
+        localeIdentifier: String
     ) async throws -> RemotePaywallResponse {
         throw PurchasesError.invalidServerResponse
     }
@@ -84,7 +86,8 @@ struct PurchasesServerClient: PurchasesServerClientProtocol {
     /// 공개 Bundle ID로 원격 페이월 조회
     func paywall(
         paywallIdentifier: String,
-        bundleIdentifier: String
+        bundleIdentifier: String,
+        localeIdentifier: String = Locale.current.identifier
     ) async throws -> RemotePaywallResponse {
         let endpointURL = serverBaseURL
             .appending(path: "v1")
@@ -102,6 +105,10 @@ struct PurchasesServerClient: PurchasesServerClientProtocol {
             URLQueryItem(
                 name: "paywallIdentifier",
                 value: paywallIdentifier
+            ),
+            URLQueryItem(
+                name: "localeIdentifier",
+                value: localeIdentifier
             )
         ]
 

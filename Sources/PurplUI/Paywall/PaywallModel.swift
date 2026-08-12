@@ -113,6 +113,9 @@ public final class PaywallModel {
     /// 원격 페이월 구성 조회 완료 여부
     private var hasCompletedConfigurationLoading = false
 
+    /// 마지막으로 원격 구성을 불러온 로케일 식별자
+    private var loadedConfigurationLocaleIdentifier: String?
+
     /// 원격 페이월 구성 조회 오류
     public private(set) var configurationError: (any Error)?
 
@@ -386,13 +389,20 @@ public final class PaywallModel {
     // MARK: - 생명주기
 
     /// 페이월에 필요한 상품과 고객 정보 준비
-    /// - Parameter applicationAccountIdentifier: 현재 앱 사용자를 연결할 선택 UUID
-    public func prepare(applicationAccountIdentifier: UUID? = nil) async {
+    /// - Parameters:
+    ///   - applicationAccountIdentifier: 현재 앱 사용자를 연결할 선택 UUID
+    ///   - localeIdentifier: 페이월 표시 문구에 사용할 현재 로케일 식별자
+    public func prepare(
+        applicationAccountIdentifier: UUID? = nil,
+        localeIdentifier: String = Locale.current.identifier
+    ) async {
         guard !isPreviewState else {
             return
         }
 
-        guard await loadRemoteConfigurationIfNeeded() else {
+        guard await loadRemoteConfigurationIfNeeded(
+            localeIdentifier: localeIdentifier
+        ) else {
             return
         }
 
@@ -409,11 +419,15 @@ public final class PaywallModel {
 
     /// 원격 페이월 구성이 필요하면 조회하고 현재 모델에 반영
     /// - Returns: 로컬 또는 원격 페이월 구성을 사용할 수 있는지 여부
-    private func loadRemoteConfigurationIfNeeded() async -> Bool {
-        guard
-            let remotePaywallIdentifier,
-            !hasCompletedConfigurationLoading
-        else {
+    private func loadRemoteConfigurationIfNeeded(
+        localeIdentifier: String
+    ) async -> Bool {
+        guard let remotePaywallIdentifier else {
+            return configurationError == nil
+        }
+
+        if hasCompletedConfigurationLoading,
+           loadedConfigurationLocaleIdentifier == localeIdentifier {
             return configurationError == nil
         }
 
@@ -427,14 +441,27 @@ public final class PaywallModel {
 
         do {
             let resolvedConfiguration = try await purchaseService
-                .paywallConfiguration(for: remotePaywallIdentifier)
+                .paywallConfiguration(
+                    for: remotePaywallIdentifier,
+                    localeIdentifier: localeIdentifier
+                )
             let paywallConfiguration = PaywallConfiguration(
                 catalog: resolvedConfiguration.catalog,
                 defaultProductIdentifier:
                     resolvedConfiguration.defaultProductIdentifier,
                 autoRenewalNoticeResource: nil,
-                privacyPolicyURL: nil,
-                termsOfServiceURL: nil
+                autoRenewalNoticeText:
+                    resolvedConfiguration.autoRenewalNotice,
+                productDisplayContents:
+                    resolvedConfiguration.productContents.map { content in
+                        PaywallProductDisplayContent(
+                            productIdentifier: content.productIdentifier,
+                            title: content.title,
+                            description: content.description
+                        )
+                    },
+                privacyPolicyURL: resolvedConfiguration.privacyPolicyURL,
+                termsOfServiceURL: resolvedConfiguration.termsOfServiceURL
             )
 
             purchaseConfiguration =
@@ -447,11 +474,13 @@ public final class PaywallModel {
                 product.id == paywallConfiguration.defaultProductIdentifier
             }?.id ?? configuredProducts.first?.id
             hasCompletedConfigurationLoading = true
+            loadedConfigurationLocaleIdentifier = localeIdentifier
             isLoadingConfiguration = false
             return true
         } catch {
             configurationError = error
             hasCompletedConfigurationLoading = true
+            loadedConfigurationLocaleIdentifier = localeIdentifier
             isLoadingConfiguration = false
             return false
         }
@@ -521,6 +550,9 @@ public final class PaywallModel {
     /// - Returns: 상품 표시와 선택 상태
     public func context(for catalogProduct: PurchaseProduct) -> PaywallProductContext {
         let storeProduct = product(for: catalogProduct)
+        let displayContent = configuration.productDisplayContents.first { content in
+            content.productIdentifier == catalogProduct.productIdentifier
+        }
         let availability: PaywallProductAvailability
 
         if storeProduct != nil {
@@ -534,6 +566,8 @@ public final class PaywallModel {
         return PaywallProductContext(
             catalogProduct: catalogProduct,
             storeProduct: storeProduct,
+            displayTitle: displayContent?.title,
+            displayDescription: displayContent?.description,
             availability: availability,
             isSelected: isSelected(catalogProduct),
             isOwned: isOwned(catalogProduct),

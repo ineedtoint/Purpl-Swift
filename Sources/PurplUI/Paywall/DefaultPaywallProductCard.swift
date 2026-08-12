@@ -86,7 +86,9 @@ public struct DefaultPaywallProductCard: View {
     /// 상품 제목 문구
     @ViewBuilder
     private var productTitleText: some View {
-        if let titleResource = context.catalogProduct.titleResource {
+        if let displayTitle = context.displayTitle {
+            Text(verbatim: displayTitle)
+        } else if let titleResource = context.catalogProduct.titleResource {
             Text(titleResource)
         } else if let storeProduct = context.storeProduct {
             Text(verbatim: storeProduct.displayName)
@@ -98,7 +100,11 @@ public struct DefaultPaywallProductCard: View {
     /// 상품 설명 문구
     @ViewBuilder
     private var productDescriptionText: some View {
-        if context.catalogProduct.titleResource != nil {
+        if let displayDescription = context.displayDescription {
+            Text(verbatim: displayDescription)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        } else if context.catalogProduct.titleResource != nil {
             if let descriptionResource = context.catalogProduct.descriptionResource {
                 Text(descriptionResource)
                     .font(.caption)

@@ -19,6 +19,12 @@ protocol PaywallPurchaseServiceProtocol: Sendable {
         for paywallIdentifier: String
     ) async throws -> ResolvedPaywallConfiguration
 
+    /// Purpl에서 현재 로케일에 맞는 원격 페이월 구성 조회
+    func paywallConfiguration(
+        for paywallIdentifier: String,
+        localeIdentifier: String
+    ) async throws -> ResolvedPaywallConfiguration
+
     /// StoreKit 상품 목록 조회
     /// - Parameter productIdentifiers: 조회할 StoreKit 상품 식별자 목록
     /// - Returns: StoreKit에서 조회한 상품 목록
@@ -50,6 +56,14 @@ protocol PaywallPurchaseServiceProtocol: Sendable {
 }
 
 extension PaywallPurchaseServiceProtocol {
+    /// 로케일별 조회를 구현하지 않은 테스트 경계의 기존 조회 사용
+    func paywallConfiguration(
+        for paywallIdentifier: String,
+        localeIdentifier: String
+    ) async throws -> ResolvedPaywallConfiguration {
+        try await paywallConfiguration(for: paywallIdentifier)
+    }
+
     /// 원격 페이월을 사용하지 않는 테스트 경계의 기본 동작
     func paywallConfiguration(
         for paywallIdentifier: String
