@@ -288,6 +288,178 @@ struct PaywallModelTests {
         #expect(await purchaseService.productRequestCount() == 1)
     }
 
+    /// 캐시를 먼저 표시한 뒤 서버 최신 구성을 현재 모델에 반영하는지 확인
+    @Test
+    func refreshesDisplayedRemotePaywallConfiguration() async throws {
+        let purchaseConfiguration = makePurchaseConfiguration()
+        let cachedConfiguration = makeResolvedPaywallConfiguration(
+            autoRenewalNotice: "캐시 안내",
+            updatedAt: Date(timeIntervalSince1970: 1)
+        )
+        let refreshedConfiguration = makeResolvedPaywallConfiguration(
+            autoRenewalNotice: "최신 안내",
+            updatedAt: Date(timeIntervalSince1970: 2)
+        )
+        let remoteConfigurationGate = PaywallRemoteConfigurationGate()
+        let purchaseService = PaywallPurchaseServiceStub(
+            remotePaywallConfiguration: refreshedConfiguration,
+            cachedRemotePaywallConfiguration: cachedConfiguration,
+            remoteConfigurationGate: remoteConfigurationGate
+        )
+        let model = PaywallModel(
+            purchaseConfiguration: PurchaseConfiguration(products: []),
+            configuration: PaywallConfiguration(
+                catalog: PurchaseCatalog(
+                    identifier: "standard",
+                    productIdentifiers: []
+                )
+            ),
+            remotePaywallIdentifier: "standard",
+            purchaseService: purchaseService
+        )
+
+        await model.prepare()
+
+        #expect(model.configuration.autoRenewalNoticeText == "캐시 안내")
+
+        let monthlyProduct = try #require(
+            purchaseConfiguration.product(for: "test.product.monthly")
+        )
+        model.select(monthlyProduct)
+        await remoteConfigurationGate.open()
+
+        for _ in 0..<100 {
+            if model.configuration.autoRenewalNoticeText == "최신 안내" {
+                break
+            }
+            try await Task.sleep(for: .milliseconds(10))
+        }
+
+        #expect(model.configuration.autoRenewalNoticeText == "최신 안내")
+        #expect(model.selectedOptionIdentifier == "test.product.monthly")
+    }
+
+    /// 서버 최신 구성 조회 실패 시 현재 화면의 캐시를 유지하는지 확인
+    @Test
+    func keepsCachedRemotePaywallConfigurationWhenRefreshFails() async {
+        let cachedConfiguration = makeResolvedPaywallConfiguration(
+            autoRenewalNotice: "오프라인 캐시 안내",
+            updatedAt: Date(timeIntervalSince1970: 1)
+        )
+        let purchaseService = PaywallPurchaseServiceStub(
+            cachedRemotePaywallConfiguration: cachedConfiguration
+        )
+        let model = makeRemotePaywallModel(purchaseService: purchaseService)
+
+        await model.prepare()
+        await Task.yield()
+
+        #expect(
+            model.configuration.autoRenewalNoticeText
+                == "오프라인 캐시 안내"
+        )
+        #expect(model.configurationError == nil)
+    }
+
+    /// 원격 캐시가 없으면 로컬 폴백을 먼저 표시한 뒤 서버 최신 구성을 반영하는지 확인
+    @Test
+    func displaysFallbackBeforeRemotePaywallRefresh() async throws {
+        let fallbackConfiguration = makePaywallConfiguration(
+            autoRenewalNoticeText: "로컬 폴백 안내"
+        )
+        let refreshedConfiguration = makeResolvedPaywallConfiguration(
+            autoRenewalNotice: "최신 안내",
+            updatedAt: Date(timeIntervalSince1970: 2)
+        )
+        let remoteConfigurationGate = PaywallRemoteConfigurationGate()
+        let purchaseService = PaywallPurchaseServiceStub(
+            remotePaywallConfiguration: refreshedConfiguration,
+            remoteConfigurationGate: remoteConfigurationGate
+        )
+        let model = makeRemotePaywallModel(
+            purchaseService: purchaseService,
+            fallbackConfiguration: fallbackConfiguration
+        )
+
+        await model.prepare()
+
+        #expect(
+            model.configuration.autoRenewalNoticeText == "로컬 폴백 안내"
+        )
+        #expect(model.configurationError == nil)
+
+        await remoteConfigurationGate.open()
+
+        for _ in 0..<100 {
+            if model.configuration.autoRenewalNoticeText == "최신 안내" {
+                break
+            }
+            try await Task.sleep(for: .milliseconds(10))
+        }
+
+        #expect(model.configuration.autoRenewalNoticeText == "최신 안내")
+    }
+
+    /// 원격 캐시와 서버 구성을 사용할 수 없어도 로컬 폴백을 유지하는지 확인
+    @Test
+    func keepsFallbackWhenRemotePaywallRefreshFails() async {
+        let fallbackConfiguration = makePaywallConfiguration(
+            autoRenewalNoticeText: "오프라인 폴백 안내"
+        )
+        let purchaseService = PaywallPurchaseServiceStub()
+        let model = makeRemotePaywallModel(
+            purchaseService: purchaseService,
+            fallbackConfiguration: fallbackConfiguration
+        )
+
+        await model.prepare()
+        await Task.yield()
+
+        #expect(
+            model.configuration.autoRenewalNoticeText
+                == "오프라인 폴백 안내"
+        )
+        #expect(model.configurationError == nil)
+    }
+
+    /// 구매 복원 중 도착한 최신 구성을 복원 완료 후 반영하는지 확인
+    @Test
+    func defersRemotePaywallRefreshWhileRestoring() async throws {
+        let cachedConfiguration = makeResolvedPaywallConfiguration(
+            autoRenewalNotice: "캐시 안내",
+            updatedAt: Date(timeIntervalSince1970: 1)
+        )
+        let refreshedConfiguration = makeResolvedPaywallConfiguration(
+            autoRenewalNotice: "최신 안내",
+            updatedAt: Date(timeIntervalSince1970: 2)
+        )
+        let remoteConfigurationGate = PaywallRemoteConfigurationGate()
+        let purchaseService = PaywallPurchaseServiceStub(
+            remotePaywallConfiguration: refreshedConfiguration,
+            cachedRemotePaywallConfiguration: cachedConfiguration,
+            remoteConfigurationGate: remoteConfigurationGate,
+            delaysOperations: true
+        )
+        let model = makeRemotePaywallModel(purchaseService: purchaseService)
+
+        await model.prepare()
+        let restoreTask = Task {
+            await model.restorePurchases()
+        }
+        while !model.isRestoring {
+            await Task.yield()
+        }
+
+        await remoteConfigurationGate.open()
+        try await Task.sleep(for: .milliseconds(10))
+
+        #expect(model.configuration.autoRenewalNoticeText == "캐시 안내")
+
+        _ = await restoreTask.value
+
+        #expect(model.configuration.autoRenewalNoticeText == "최신 안내")
+    }
+
     /// 서버 고객 정보와 무관하게 StoreKit 상태만으로 구매 가능 여부를 결정하는지 확인
     @Test
     func determinesPurchaseAvailabilityFromStoreKitState() {
@@ -589,7 +761,7 @@ struct PaywallModelTests {
             purchaseService: purchaseService
         )
 
-        try await model.refreshCustomerInfo(
+        await model.prepare(
             applicationAccountIdentifier: firstApplicationAccountIdentifier
         )
         #expect(model.hasActiveEntitlement)
@@ -648,7 +820,7 @@ struct PaywallModelTests {
 
     /// 이전 계정 복원 중 새 계정 준비가 고객 정보를 반드시 조회하는지 확인
     @Test
-    func preparesNewAccountDuringPreviousAccountRestore() async throws {
+    func preparesNewAccountDuringPreviousAccountRestore() async {
         let firstApplicationAccountIdentifier = UUID(
             uuidString: "E67150BC-A6D2-4F08-9F9F-4320044D5DE9"
         )!
@@ -666,13 +838,11 @@ struct PaywallModelTests {
             purchaseService: purchaseService
         )
 
-        try await model.refreshCustomerInfo(
+        await model.prepare(
             applicationAccountIdentifier: firstApplicationAccountIdentifier
         )
         let restoreTask = Task {
-            await model.restorePurchases(
-                applicationAccountIdentifier: firstApplicationAccountIdentifier
-            )
+            await model.restorePurchases()
         }
         while !model.isRestoring {
             await Task.yield()
@@ -689,37 +859,31 @@ struct PaywallModelTests {
         #expect(model.hasActiveEntitlement)
     }
 
-    /// 다른 앱 계정 토큰으로 구매를 요청하면 기존 권한 상태를 사용하지 않는지 확인
+    /// 구매 시작 시 준비된 앱 계정의 고객 상태를 그대로 사용하는지 확인
     @Test
-    func resetsCustomerStateForDifferentPurchaseAccountToken() async throws {
-        let firstApplicationAccountIdentifier = UUID(
+    func purchaseUsesPreparedApplicationAccountState() async throws {
+        let applicationAccountIdentifier = UUID(
             uuidString: "8516507E-9CFD-43F4-A747-0F7CC7E25C62"
         )!
-        let secondApplicationAccountIdentifier = UUID(
-            uuidString: "85F8BE05-EB56-4986-A66E-02A552024F44"
-        )!
-        let configuration = makePaywallConfiguration()
         let purchaseService = PaywallPurchaseServiceStub(
             restoredCustomerInfo: makeActiveCustomerInfo()
         )
         let model = PaywallModel(
             purchaseConfiguration: makePurchaseConfiguration(),
-            configuration: configuration,
+            configuration: makePaywallConfiguration(),
             purchaseService: purchaseService
         )
 
-        try await model.refreshCustomerInfo(
-            applicationAccountIdentifier: firstApplicationAccountIdentifier
+        await model.prepare(
+            applicationAccountIdentifier: applicationAccountIdentifier
         )
         #expect(model.hasActiveEntitlement)
 
-        let purchaseResult = try await model.purchaseSelectedProduct(
-            appAccountToken: secondApplicationAccountIdentifier
-        )
+        let purchaseResult = try await model.purchaseSelectedProduct()
 
         #expect(purchaseResult == nil)
-        #expect(!model.hasActiveEntitlement)
-        #expect(model.customerInfoState == .idle)
+        #expect(model.hasActiveEntitlement)
+        #expect(model.customerInfoState == .loaded)
     }
 
     /// 공유 스트림 변경을 현재 앱 계정 고객 정보로 다시 확인하는지 검증
@@ -839,7 +1003,8 @@ struct PaywallModelTests {
     ///   - defaultProductIdentifier: 기본 선택 구매 옵션 식별자
     /// - Returns: 월간과 연간 상품을 포함한 페이월 구성
     private func makePaywallConfiguration(
-        defaultProductIdentifier: String? = "test.product.yearly"
+        defaultProductIdentifier: String? = "test.product.yearly",
+        autoRenewalNoticeText: String? = nil
     ) -> PaywallConfiguration {
         let purchaseConfiguration = makePurchaseConfiguration()
 
@@ -850,6 +1015,7 @@ struct PaywallModelTests {
             ),
             defaultProductIdentifier: defaultProductIdentifier,
             autoRenewalNoticeResource: nil,
+            autoRenewalNoticeText: autoRenewalNoticeText,
             privacyPolicyURL: nil,
             termsOfServiceURL: nil
         )
@@ -872,6 +1038,62 @@ struct PaywallModelTests {
                 makePurchaseProduct(productIdentifier: "test.product.monthly"),
                 makePurchaseProduct(productIdentifier: "test.product.yearly")
             ]
+        )
+    }
+
+    /// 테스트용 해석된 원격 페이월 구성 생성
+    /// - Parameters:
+    ///   - autoRenewalNotice: 자동 갱신 안내 문구
+    ///   - updatedAt: 원격 구성 수정 시각
+    /// - Returns: 월간과 연간 상품을 포함한 원격 페이월 구성
+    private func makeResolvedPaywallConfiguration(
+        autoRenewalNotice: String,
+        updatedAt: Date
+    ) -> ResolvedPaywallConfiguration {
+        let purchaseConfiguration = makePurchaseConfiguration()
+
+        return ResolvedPaywallConfiguration(
+            paywallIdentifier: "standard",
+            purchaseConfiguration: purchaseConfiguration,
+            catalog: PurchaseCatalog(
+                identifier: "standard",
+                products: purchaseConfiguration.products
+            ),
+            defaultProductIdentifier: "test.product.yearly",
+            autoRenewalNotice: autoRenewalNotice,
+            updatedAt: updatedAt
+        )
+    }
+
+    /// 테스트용 원격 페이월 모델 생성
+    /// - Parameters:
+    ///   - purchaseService: 페이월에서 사용할 테스트 Purpl 서비스
+    ///   - fallbackConfiguration: 원격 구성을 사용할 수 없을 때 사용할 로컬 구성
+    /// - Returns: 빈 임시 구성 또는 로컬 폴백으로 시작하는 원격 페이월 모델
+    private func makeRemotePaywallModel(
+        purchaseService: any PaywallPurchaseServiceProtocol,
+        fallbackConfiguration: PaywallConfiguration? = nil
+    ) -> PaywallModel {
+        let fallbackPurchaseConfiguration = fallbackConfiguration == nil
+            ? nil
+            : makePurchaseConfiguration()
+        let purchaseConfiguration = fallbackPurchaseConfiguration
+            ?? PurchaseConfiguration(products: [])
+        let configuration = fallbackConfiguration
+            ?? PaywallConfiguration(
+                catalog: PurchaseCatalog(
+                    identifier: "standard",
+                    productIdentifiers: []
+                )
+            )
+
+        return PaywallModel(
+            purchaseConfiguration: purchaseConfiguration,
+            configuration: configuration,
+            remotePaywallIdentifier: "standard",
+            fallbackPurchaseConfiguration: fallbackPurchaseConfiguration,
+            fallbackPaywallConfiguration: fallbackConfiguration,
+            purchaseService: purchaseService
         )
     }
 
@@ -1061,6 +1283,12 @@ private final class PaywallPurchaseServiceStub: PaywallPurchaseServiceProtocol {
     /// 원격 페이월 조회에서 반환할 해석된 구성
     private let remotePaywallConfiguration: ResolvedPaywallConfiguration?
 
+    /// 원격 페이월 캐시 조회에서 반환할 해석된 구성
+    private let cachedRemotePaywallConfiguration: ResolvedPaywallConfiguration?
+
+    /// 원격 페이월 서버 조회 대기 제어기
+    private let remoteConfigurationGate: PaywallRemoteConfigurationGate?
+
     /// 복원 후 반환할 고객 정보
     private let restoredCustomerInfo: CustomerInfo
 
@@ -1096,6 +1324,8 @@ private final class PaywallPurchaseServiceStub: PaywallPurchaseServiceProtocol {
     /// 테스트용 Purpl 기능 대체 객체 생성
     init(
         remotePaywallConfiguration: ResolvedPaywallConfiguration? = nil,
+        cachedRemotePaywallConfiguration: ResolvedPaywallConfiguration? = nil,
+        remoteConfigurationGate: PaywallRemoteConfigurationGate? = nil,
         restoredCustomerInfo: CustomerInfo = CustomerInfo(
             customerIdentifier: "customer",
             entitlements: []
@@ -1107,6 +1337,9 @@ private final class PaywallPurchaseServiceStub: PaywallPurchaseServiceProtocol {
         streamedCustomerInfo: CustomerInfo? = nil
     ) {
         self.remotePaywallConfiguration = remotePaywallConfiguration
+        self.cachedRemotePaywallConfiguration =
+            cachedRemotePaywallConfiguration
+        self.remoteConfigurationGate = remoteConfigurationGate
         self.restoredCustomerInfo = restoredCustomerInfo
         self.entitlementProductIdentifiers = entitlementProductIdentifiers
         self.restoreShouldFail = restoreShouldFail
@@ -1122,6 +1355,8 @@ private final class PaywallPurchaseServiceStub: PaywallPurchaseServiceProtocol {
     func paywallConfiguration(
         for paywallIdentifier: String
     ) async throws -> ResolvedPaywallConfiguration {
+        await remoteConfigurationGate?.wait()
+
         guard
             let remotePaywallConfiguration,
             remotePaywallConfiguration.paywallIdentifier == paywallIdentifier
@@ -1130,6 +1365,23 @@ private final class PaywallPurchaseServiceStub: PaywallPurchaseServiceProtocol {
         }
 
         return remotePaywallConfiguration
+    }
+
+    /// 테스트용 원격 페이월 캐시 구성 반환
+    /// - Parameters:
+    ///   - paywallIdentifier: 조회할 페이월 식별자
+    ///   - localeIdentifier: 조회할 로케일 식별자
+    /// - Returns: 준비된 원격 페이월 캐시 구성
+    func cachedPaywallConfiguration(
+        for paywallIdentifier: String,
+        localeIdentifier: String
+    ) async -> ResolvedPaywallConfiguration? {
+        guard cachedRemotePaywallConfiguration?.paywallIdentifier
+                == paywallIdentifier else {
+            return nil
+        }
+
+        return cachedRemotePaywallConfiguration
     }
 
     /// 빈 StoreKit 상품 목록 반환
@@ -1206,6 +1458,37 @@ private final class PaywallPurchaseServiceStub: PaywallPurchaseServiceProtocol {
     /// - Returns: 기록된 고객 정보 요청 횟수
     func customerInfoRequestCount() async -> Int {
         await requestRecorder.customerInfoRequestCount()
+    }
+}
+
+/// 원격 페이월 서버 응답 시점을 제어하는 테스트 대기 장치
+private actor PaywallRemoteConfigurationGate {
+    /// 서버 응답 허용 여부
+    private var isOpen = false
+
+    /// 서버 응답 대기 작업 목록
+    private var continuations: [CheckedContinuation<Void, Never>] = []
+
+    /// 서버 응답이 허용될 때까지 대기
+    func wait() async {
+        guard !isOpen else {
+            return
+        }
+
+        await withCheckedContinuation { continuation in
+            continuations.append(continuation)
+        }
+    }
+
+    /// 대기 중인 모든 서버 응답 작업 허용
+    func open() {
+        isOpen = true
+        let waitingContinuations = continuations
+        continuations.removeAll()
+
+        for continuation in waitingContinuations {
+            continuation.resume()
+        }
     }
 }
 

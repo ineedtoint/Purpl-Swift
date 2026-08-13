@@ -79,6 +79,7 @@ public struct PaywallView<MarketingContent: View, ProductContent: View>: View {
     ///
     /// - Parameters:
     ///   - paywallIdentifier: Purpl 웹에서 정의한 페이월 구성 식별자
+    ///   - fallbackConfiguration: 원격 구성을 사용할 수 없을 때 표시할 선택 로컬 구성
     ///   - style: 기본 화면과 하단 구매 영역 스타일
     ///   - appAccountToken: 로그인 사용자의 구매를 앱 계정과 연결할 선택 UUID
     ///   - purchaseResultAction: StoreKit 구매 처리 결과 액션
@@ -88,6 +89,7 @@ public struct PaywallView<MarketingContent: View, ProductContent: View>: View {
     @MainActor
     public init(
         paywallIdentifier: String,
+        fallbackConfiguration: PaywallConfiguration? = nil,
         style: PaywallStyle = PaywallStyle(),
         appAccountToken: UUID? = nil,
         purchaseResultAction: @escaping @MainActor (PurchaseResult) -> Void = { _ in },
@@ -98,7 +100,10 @@ public struct PaywallView<MarketingContent: View, ProductContent: View>: View {
         ) -> ProductContent
     ) {
         self.init(
-            model: PaywallModel(paywallIdentifier: paywallIdentifier),
+            model: PaywallModel(
+                paywallIdentifier: paywallIdentifier,
+                fallbackConfiguration: fallbackConfiguration
+            ),
             style: style,
             appAccountToken: appAccountToken,
             purchaseResultAction: purchaseResultAction,
@@ -161,7 +166,6 @@ public struct PaywallView<MarketingContent: View, ProductContent: View>: View {
             PaywallPurchaseBar(
                 style: style,
                 model: model,
-                appAccountToken: appAccountToken,
                 purchaseResultAction: purchaseResultAction,
                 purchaseFailureAction: purchaseFailureAction
             )
@@ -325,6 +329,7 @@ public extension PaywallView where ProductContent == DefaultPaywallProductCard {
     ///
     /// - Parameters:
     ///   - paywallIdentifier: Purpl 웹에서 정의한 페이월 구성 식별자
+    ///   - fallbackConfiguration: 원격 구성을 사용할 수 없을 때 표시할 선택 로컬 구성
     ///   - style: 기본 화면과 상품 카드 스타일
     ///   - appAccountToken: 로그인 사용자의 구매를 앱 계정과 연결할 선택 UUID
     ///   - purchaseResultAction: StoreKit 구매 처리 결과 액션
@@ -333,6 +338,7 @@ public extension PaywallView where ProductContent == DefaultPaywallProductCard {
     @MainActor
     init(
         paywallIdentifier: String,
+        fallbackConfiguration: PaywallConfiguration? = nil,
         style: PaywallStyle = PaywallStyle(),
         appAccountToken: UUID? = nil,
         purchaseResultAction: @escaping @MainActor (PurchaseResult) -> Void = { _ in },
@@ -341,6 +347,7 @@ public extension PaywallView where ProductContent == DefaultPaywallProductCard {
     ) {
         self.init(
             paywallIdentifier: paywallIdentifier,
+            fallbackConfiguration: fallbackConfiguration,
             style: style,
             appAccountToken: appAccountToken,
             purchaseResultAction: purchaseResultAction,

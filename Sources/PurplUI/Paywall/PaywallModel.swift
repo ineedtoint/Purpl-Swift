@@ -107,6 +107,12 @@ public final class PaywallModel {
     /// 원격 페이월 구성 식별자
     private let remotePaywallIdentifier: String?
 
+    /// 원격 페이월을 사용할 수 없을 때 사용할 로컬 구매 구성
+    private let fallbackPurchaseConfiguration: PurchaseConfiguration?
+
+    /// 원격 페이월을 사용할 수 없을 때 사용할 로컬 페이월 구성
+    private let fallbackPaywallConfiguration: PaywallConfiguration?
+
     /// 원격 페이월 구성 조회 진행 여부
     public private(set) var isLoadingConfiguration = false
 
@@ -115,6 +121,12 @@ public final class PaywallModel {
 
     /// 마지막으로 원격 구성을 불러온 로케일 식별자
     private var loadedConfigurationLocaleIdentifier: String?
+
+    /// 구매 또는 복원 완료 후 반영할 최신 원격 페이월 구성
+    private var pendingRemoteConfiguration: (
+        configuration: ResolvedPaywallConfiguration,
+        localeIdentifier: String
+    )?
 
     /// 원격 페이월 구성 조회 오류
     public private(set) var configurationError: (any Error)?
@@ -270,6 +282,9 @@ public final class PaywallModel {
     /// 상품 조회 작업 변경 순번
     private var productLoadingRevision = 0
 
+    /// 최신 원격 페이월 구성 조회 작업
+    private var remoteConfigurationRefreshTask: Task<Void, Never>?
+
     /// 마지막으로 고객 정보를 요청한 앱 계정 식별자
     private var applicationAccountIdentifier: UUID?
 
@@ -298,6 +313,8 @@ public final class PaywallModel {
             purchaseConfiguration: purchaseConfiguration,
             configuration: configuration,
             remotePaywallIdentifier: nil,
+            fallbackPurchaseConfiguration: nil,
+            fallbackPaywallConfiguration: nil,
             purchaseService: purchases,
             isPreviewState: false
         )
@@ -306,18 +323,45 @@ public final class PaywallModel {
     /// Purpl 원격 페이월 모델 생성
     ///
     /// 앱 실행 중 `Purchases.configure`를 먼저 호출해야 한다.
+    /// 로컬 폴백을 전달하면 원격 캐시와 서버 구성을 모두 사용할 수 없을 때
+    /// `Purchases.configure`에 전달한 구매 구성으로 페이월을 표시한다.
+    ///
+    /// - Parameters:
+    ///   - paywallIdentifier: Purpl 웹에서 정의한 페이월 구성 식별자
+    ///   - fallbackConfiguration: 원격 페이월을 사용할 수 없을 때 표시할 선택 로컬 구성
+    ///   - purchases: 페이월 구성과 구매를 처리할 Purpl 인스턴스
     public convenience init(
         paywallIdentifier: String,
+        fallbackConfiguration: PaywallConfiguration? = nil,
         purchases: Purchases = .shared
     ) {
-        let purchaseConfiguration = PurchaseConfiguration(products: [])
+        let purchaseConfiguration: PurchaseConfiguration
+        let configuration: PaywallConfiguration
+
+        if let fallbackConfiguration {
+            guard let configuredPurchaseConfiguration =
+                    purchases.purchaseConfiguration else {
+                preconditionFailure(
+                    "원격 페이월 폴백을 사용하려면 Purchases.configure에 PurchaseConfiguration을 전달해야 합니다."
+                )
+            }
+
+            purchaseConfiguration = configuredPurchaseConfiguration
+            configuration = fallbackConfiguration
+        } else {
+            purchaseConfiguration = PurchaseConfiguration(products: [])
+            configuration = Self.placeholderConfiguration(
+                paywallIdentifier: paywallIdentifier
+            )
+        }
 
         self.init(
             purchaseConfiguration: purchaseConfiguration,
-            configuration: Self.placeholderConfiguration(
-                paywallIdentifier: paywallIdentifier
-            ),
+            configuration: configuration,
             remotePaywallIdentifier: paywallIdentifier,
+            fallbackPurchaseConfiguration:
+                fallbackConfiguration == nil ? nil : purchaseConfiguration,
+            fallbackPaywallConfiguration: fallbackConfiguration,
             purchaseService: purchases,
             isPreviewState: false
         )
@@ -328,6 +372,8 @@ public final class PaywallModel {
         purchaseConfiguration: PurchaseConfiguration,
         configuration: PaywallConfiguration,
         remotePaywallIdentifier: String? = nil,
+        fallbackPurchaseConfiguration: PurchaseConfiguration? = nil,
+        fallbackPaywallConfiguration: PaywallConfiguration? = nil,
         purchaseService: (any PaywallPurchaseServiceProtocol)?,
         isPreviewState: Bool = false
     ) {
@@ -339,9 +385,12 @@ public final class PaywallModel {
         self.purchaseConfiguration = purchaseConfiguration
         self.configuration = configuration
         self.remotePaywallIdentifier = remotePaywallIdentifier
+        self.fallbackPurchaseConfiguration = fallbackPurchaseConfiguration
+        self.fallbackPaywallConfiguration = fallbackPaywallConfiguration
         self.purchaseService = purchaseService
         self.isPreviewState = isPreviewState
         self.isLoadingConfiguration = remotePaywallIdentifier != nil
+            && fallbackPaywallConfiguration == nil
         let configuredProducts = configuration.catalog.products(
             in: purchaseConfiguration
         )
@@ -377,6 +426,8 @@ public final class PaywallModel {
             purchaseConfiguration: purchaseConfiguration,
             configuration: configuration,
             remotePaywallIdentifier: nil,
+            fallbackPurchaseConfiguration: nil,
+            fallbackPaywallConfiguration: nil,
             purchaseService: nil,
             isPreviewState: true
         )
@@ -436,54 +487,256 @@ public final class PaywallModel {
             return false
         }
 
-        isLoadingConfiguration = true
+        remoteConfigurationRefreshTask?.cancel()
+        pendingRemoteConfiguration = nil
+        isLoadingConfiguration = fallbackPaywallConfiguration == nil
         configurationError = nil
+
+        if let cachedConfiguration = await purchaseService
+            .cachedPaywallConfiguration(
+                for: remotePaywallIdentifier,
+                localeIdentifier: localeIdentifier
+            ) {
+            guard !Task.isCancelled else {
+                return false
+            }
+
+            let requiresProductReload = applyRemoteConfiguration(
+                cachedConfiguration
+            )
+            if requiresProductReload {
+                resetProductLoading()
+            }
+            finishRemoteConfigurationLoading(
+                localeIdentifier: localeIdentifier
+            )
+            startRemoteConfigurationRefresh(
+                paywallIdentifier: remotePaywallIdentifier,
+                localeIdentifier: localeIdentifier,
+                purchaseService: purchaseService
+            )
+            return true
+        }
+
+        if applyFallbackConfiguration() {
+            resetProductLoading()
+        }
+
+        if fallbackPaywallConfiguration != nil {
+            finishRemoteConfigurationLoading(
+                localeIdentifier: localeIdentifier
+            )
+            startRemoteConfigurationRefresh(
+                paywallIdentifier: remotePaywallIdentifier,
+                localeIdentifier: localeIdentifier,
+                purchaseService: purchaseService
+            )
+            return true
+        }
 
         do {
             let resolvedConfiguration = try await purchaseService
-                .paywallConfiguration(
+                .refreshPaywallConfiguration(
                     for: remotePaywallIdentifier,
                     localeIdentifier: localeIdentifier
                 )
-            let paywallConfiguration = PaywallConfiguration(
-                catalog: resolvedConfiguration.catalog,
-                defaultProductIdentifier:
-                    resolvedConfiguration.defaultProductIdentifier,
-                autoRenewalNoticeResource: nil,
-                autoRenewalNoticeText:
-                    resolvedConfiguration.autoRenewalNotice,
-                productDisplayContents:
-                    resolvedConfiguration.productContents.map { content in
-                        PaywallProductDisplayContent(
-                            productIdentifier: content.productIdentifier,
-                            title: content.title,
-                            description: content.description
-                        )
-                    },
-                privacyPolicyURL: resolvedConfiguration.privacyPolicyURL,
-                termsOfServiceURL: resolvedConfiguration.termsOfServiceURL
-            )
+            guard !Task.isCancelled else {
+                return false
+            }
 
-            purchaseConfiguration =
-                resolvedConfiguration.purchaseConfiguration
-            configuration = paywallConfiguration
-            let configuredProducts = paywallConfiguration.catalog.products(
-                in: resolvedConfiguration.purchaseConfiguration
+            let requiresProductReload = applyRemoteConfiguration(
+                resolvedConfiguration
             )
-            selectedOptionIdentifier = configuredProducts.first { product in
-                product.id == paywallConfiguration.defaultProductIdentifier
-            }?.id ?? configuredProducts.first?.id
-            hasCompletedConfigurationLoading = true
-            loadedConfigurationLocaleIdentifier = localeIdentifier
-            isLoadingConfiguration = false
+            if requiresProductReload {
+                resetProductLoading()
+            }
+            finishRemoteConfigurationLoading(
+                localeIdentifier: localeIdentifier
+            )
             return true
         } catch {
             configurationError = error
-            hasCompletedConfigurationLoading = true
-            loadedConfigurationLocaleIdentifier = localeIdentifier
-            isLoadingConfiguration = false
+            finishRemoteConfigurationLoading(
+                localeIdentifier: localeIdentifier
+            )
             return false
         }
+    }
+
+    /// 원격 페이월 구성 로딩 완료 상태 반영
+    /// - Parameter localeIdentifier: 로딩을 마친 로케일 식별자
+    private func finishRemoteConfigurationLoading(
+        localeIdentifier: String
+    ) {
+        hasCompletedConfigurationLoading = true
+        loadedConfigurationLocaleIdentifier = localeIdentifier
+        isLoadingConfiguration = false
+    }
+
+    /// 최신 원격 페이월 구성을 조회하여 현재 화면에 반영
+    /// - Parameters:
+    ///   - paywallIdentifier: 조회할 페이월 식별자
+    ///   - localeIdentifier: 조회할 로케일 식별자
+    ///   - purchaseService: 원격 페이월을 조회할 Purpl 서비스
+    private func startRemoteConfigurationRefresh(
+        paywallIdentifier: String,
+        localeIdentifier: String,
+        purchaseService: any PaywallPurchaseServiceProtocol
+    ) {
+        remoteConfigurationRefreshTask = Task { [weak self, purchaseService] in
+            do {
+                let refreshedConfiguration = try await purchaseService
+                    .refreshPaywallConfiguration(
+                        for: paywallIdentifier,
+                        localeIdentifier: localeIdentifier
+                    )
+                guard !Task.isCancelled else {
+                    return
+                }
+
+                self?.receiveRefreshedRemoteConfiguration(
+                    refreshedConfiguration,
+                    localeIdentifier: localeIdentifier
+                )
+            } catch {
+                // 최신 조회 실패 시 현재 화면에 표시한 캐시 또는 폴백 구성을 유지한다.
+            }
+        }
+    }
+
+    /// 서버에서 갱신한 원격 페이월 구성 수신
+    /// - Parameters:
+    ///   - resolvedConfiguration: 서버에서 받은 최신 원격 페이월 구성
+    ///   - localeIdentifier: 구성을 요청한 로케일 식별자
+    private func receiveRefreshedRemoteConfiguration(
+        _ resolvedConfiguration: ResolvedPaywallConfiguration,
+        localeIdentifier: String
+    ) {
+        guard loadedConfigurationLocaleIdentifier == localeIdentifier else {
+            return
+        }
+
+        guard !isProcessing else {
+            pendingRemoteConfiguration = (
+                resolvedConfiguration,
+                localeIdentifier
+            )
+            return
+        }
+
+        applyRefreshedRemoteConfiguration(resolvedConfiguration)
+    }
+
+    /// 현재 화면에 최신 원격 페이월 구성 적용
+    /// - Parameter resolvedConfiguration: 적용할 최신 원격 페이월 구성
+    private func applyRefreshedRemoteConfiguration(
+        _ resolvedConfiguration: ResolvedPaywallConfiguration
+    ) {
+        let requiresProductReload = applyRemoteConfiguration(
+            resolvedConfiguration
+        )
+
+        guard requiresProductReload else {
+            return
+        }
+
+        resetProductLoading()
+        _ = startProductLoadingIfNeeded()
+    }
+
+    /// 구매 또는 복원 완료 후 대기 중인 최신 원격 페이월 구성 적용
+    private func applyPendingRemoteConfigurationIfNeeded() {
+        guard !isProcessing,
+              let pendingRemoteConfiguration else {
+            return
+        }
+
+        self.pendingRemoteConfiguration = nil
+        receiveRefreshedRemoteConfiguration(
+            pendingRemoteConfiguration.configuration,
+            localeIdentifier: pendingRemoteConfiguration.localeIdentifier
+        )
+    }
+
+    /// 해석된 원격 페이월 구성을 화면 구성으로 변환하여 적용
+    /// - Parameter resolvedConfiguration: 적용할 해석된 원격 페이월 구성
+    /// - Returns: StoreKit 상품을 다시 조회해야 하는지 여부
+    @discardableResult
+    private func applyRemoteConfiguration(
+        _ resolvedConfiguration: ResolvedPaywallConfiguration
+    ) -> Bool {
+        let paywallConfiguration = PaywallConfiguration(
+            catalog: resolvedConfiguration.catalog,
+            defaultProductIdentifier:
+                resolvedConfiguration.defaultProductIdentifier,
+            autoRenewalNoticeResource: nil,
+            autoRenewalNoticeText:
+                resolvedConfiguration.autoRenewalNotice,
+            productDisplayContents:
+                resolvedConfiguration.productContents.map { content in
+                    PaywallProductDisplayContent(
+                        productIdentifier: content.productIdentifier,
+                        title: content.title,
+                        description: content.description
+                    )
+                },
+            privacyPolicyURL: resolvedConfiguration.privacyPolicyURL,
+            termsOfServiceURL: resolvedConfiguration.termsOfServiceURL
+        )
+
+        return applyConfiguration(
+            purchaseConfiguration: resolvedConfiguration.purchaseConfiguration,
+            paywallConfiguration: paywallConfiguration
+        )
+    }
+
+    /// 원격 구성을 사용할 수 없을 때 로컬 폴백 구성 적용
+    /// - Returns: StoreKit 상품을 다시 조회해야 하는지 여부
+    @discardableResult
+    private func applyFallbackConfiguration() -> Bool {
+        guard let fallbackPurchaseConfiguration,
+              let fallbackPaywallConfiguration else {
+            return false
+        }
+
+        return applyConfiguration(
+            purchaseConfiguration: fallbackPurchaseConfiguration,
+            paywallConfiguration: fallbackPaywallConfiguration
+        )
+    }
+
+    /// 지정한 구매 구성과 페이월 구성을 현재 화면에 적용
+    /// - Parameters:
+    ///   - purchaseConfiguration: 페이월 상품을 해석할 구매 구성
+    ///   - paywallConfiguration: 화면에 표시할 페이월 구성
+    /// - Returns: StoreKit 상품을 다시 조회해야 하는지 여부
+    private func applyConfiguration(
+        purchaseConfiguration: PurchaseConfiguration,
+        paywallConfiguration: PaywallConfiguration
+    ) -> Bool {
+        let previousProductIdentifiers =
+            configuration.catalog.productIdentifiers
+        let previousSelectedOptionIdentifier = selectedOptionIdentifier
+        let configuredProducts = paywallConfiguration.catalog.products(
+            in: purchaseConfiguration
+        )
+
+        self.purchaseConfiguration = purchaseConfiguration
+        configuration = paywallConfiguration
+
+        if let previousSelectedOptionIdentifier,
+           configuredProducts.contains(where: { product in
+               product.id == previousSelectedOptionIdentifier
+           }) {
+            selectedOptionIdentifier = previousSelectedOptionIdentifier
+        } else {
+            selectedOptionIdentifier = configuredProducts.first { product in
+                product.id == paywallConfiguration.defaultProductIdentifier
+            }?.id ?? configuredProducts.first?.id
+        }
+
+        return previousProductIdentifiers
+            != paywallConfiguration.catalog.productIdentifiers
     }
 
     /// 원격 조회 전 화면에 사용하는 빈 페이월 구성 생성
@@ -644,6 +897,16 @@ public final class PaywallModel {
         return productLoadingTask
     }
 
+    /// 원격 카탈로그 변경에 맞게 기존 상품 조회 상태 초기화
+    private func resetProductLoading() {
+        productLoadingRevision += 1
+        productLoadingTask?.cancel()
+        productLoadingTask = nil
+        products = []
+        isLoadingProducts = false
+        hasCompletedProductLoading = false
+    }
+
     /// StoreKit 상품 조회 결과 반영
     /// - Parameters:
     ///   - loadedProducts: StoreKit에서 불러온 상품 목록
@@ -746,14 +1009,9 @@ public final class PaywallModel {
     // MARK: - 구매
 
     /// 선택된 StoreKit 상품 구매
-    /// - Parameter appAccountToken: 로그인 사용자의 구매를 앱 계정과 연결할 선택 UUID
     /// - Returns: 구매를 시작하지 못하면 `nil`, 그 외 StoreKit 구매 처리 상태
-    public func purchaseSelectedProduct(
-        appAccountToken: UUID? = nil
-    ) async throws -> PurchaseResult? {
-        let requestedAccountRevision = updateApplicationAccountIdentifier(
-            appAccountToken
-        )
+    public func purchaseSelectedProduct() async throws -> PurchaseResult? {
+        let requestedAccountRevision = applicationAccountRevision
 
         // StoreKit 상품 준비 상태와 중복 요청 여부만 구매 조건으로 확인한다.
         guard
@@ -768,11 +1026,12 @@ public final class PaywallModel {
         purchasingProductIdentifier = selectedStoreProduct.id
         defer {
             purchasingProductIdentifier = nil
+            applyPendingRemoteConfigurationIfNeeded()
         }
 
         let purchaseResult = try await purchaseService.purchase(
             selectedStoreProduct,
-            appAccountToken: appAccountToken
+            appAccountToken: applicationAccountIdentifier
         )
         guard requestedAccountRevision == applicationAccountRevision else {
             return purchaseResult
@@ -814,19 +1073,14 @@ public final class PaywallModel {
     // MARK: - 구매 복원
 
     /// App Store 구매 내역 복원
-    /// - Parameter applicationAccountIdentifier: 현재 앱 사용자를 연결할 선택 UUID
     /// - Returns: 복원을 시작하지 못하면 `nil`, StoreKit 동기화 성공 여부
     @discardableResult
-    public func restorePurchases(
-        applicationAccountIdentifier: UUID? = nil
-    ) async -> Bool? {
+    public func restorePurchases() async -> Bool? {
         guard let purchaseService else {
             return nil
         }
 
-        let requestedAccountRevision = updateApplicationAccountIdentifier(
-            applicationAccountIdentifier
-        )
+        let requestedAccountRevision = applicationAccountRevision
         isCustomerInfoObservationEnabled = true
 
         // 구매 또는 다른 복원 작업과 동시에 App Store 동기화를 시작하지 않는다.
@@ -842,6 +1096,7 @@ public final class PaywallModel {
                 isRestoring = false
                 restoringAccountRevision = nil
             }
+            applyPendingRemoteConfigurationIfNeeded()
         }
 
         do {

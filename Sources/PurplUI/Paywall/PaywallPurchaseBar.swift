@@ -17,9 +17,6 @@ struct PaywallPurchaseBar: View {
     /// 페이월 상태 모델
     let model: PaywallModel
 
-    /// 로그인 사용자의 구매 연결 식별자
-    let appAccountToken: UUID?
-
     /// 구매 처리 결과 액션
     let purchaseResultAction: @MainActor (PurchaseResult) -> Void
 
@@ -57,9 +54,8 @@ struct PaywallPurchaseBar: View {
     /// 선택된 상품 구매
     private func purchaseSelectedProduct() async {
         do {
-            guard let purchaseResult = try await model.purchaseSelectedProduct(
-                appAccountToken: appAccountToken
-            ) else {
+            guard let purchaseResult = try await model
+                .purchaseSelectedProduct() else {
                 return
             }
 
@@ -73,9 +69,7 @@ struct PaywallPurchaseBar: View {
     private var restoreButton: some View {
         Button {
             Task {
-                await model.restorePurchases(
-                    applicationAccountIdentifier: appAccountToken
-                )
+                await model.restorePurchases()
             }
         } label: {
             if model.isRestoring {
