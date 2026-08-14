@@ -103,6 +103,31 @@ PaywallView(paywallIdentifier: "standard") {
 
 Remote paywall configuration is resolved using the app's bundle identifier, paywall identifier, and current locale. Purpl supplies localized product content, renewal notices, and policy links, while StoreKit still handles product loading, pricing, availability, and purchases.
 
+To keep a paywall available before the first remote response or during a network failure, provide the app's local purchase configuration and paywall fallback. A cached remote configuration remains the first choice. When no cache exists, the fallback is presented immediately and replaced after a successful remote refresh.
+
+```swift
+Purchases.configure(
+    purchaseConfiguration,
+    entitlementMode: .server
+)
+
+PaywallView(
+    paywallIdentifier: "standard",
+    fallbackConfiguration: PaywallConfiguration(
+        catalog: standardCatalog,
+        defaultProductIdentifier: yearlyProduct.productIdentifier
+    )
+) {
+    Text("Flow+")
+}
+```
+
+The paywall fallback only controls presentation. Use `serverWithStoreKitFallback` as the entitlement mode when entitlement checks should also fall back to StoreKit after a server failure.
+
+## API reference
+
+Browse the [Purpl Swift API Reference](https://swift.purpl.sh/) online. Purpl and PurplUI include DocC catalogs, so you can also choose **Product > Build Documentation** in Xcode to browse the complete API reference, platform availability, and deprecation guidance generated from the SDK source.
+
 ## Presentation ownership
 
 `PaywallView` owns product presentation and purchase actions. Your app owns `NavigationStack`, tabs, toolbars, and close buttons so it can compose multiple paywalls within the same screen.

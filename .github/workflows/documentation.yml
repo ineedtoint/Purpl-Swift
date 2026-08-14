@@ -1,0 +1,80 @@
+name: Documentation
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/documentation/**'
+      - '.github/workflows/documentation.yml'
+      - 'Package.swift'
+      - 'Sources/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: macos-26
+    steps:
+      - name: 저장소 가져오기
+        uses: actions/checkout@v6
+
+      - name: DocC 아카이브 생성
+        run: >-
+          xcodebuild -quiet
+          -scheme PurplUI
+          -destination 'generic/platform=macOS'
+          -derivedDataPath .build/documentation
+          docbuild
+
+      - name: GitHub Pages 구성
+        id: pages
+        uses: actions/configure-pages@v5
+
+      - name: 정적 문서 변환
+        env:
+          PAGES_BASE_PATH: ${{ steps.pages.outputs.base_path }}
+        run: |
+          DOCUMENTATION_HOSTING_BASE_PATH="${PAGES_BASE_PATH#/}"
+          DOCUMENTATION_HOSTING_ARGUMENTS=()
+          if [[ -n "$DOCUMENTATION_HOSTING_BASE_PATH" ]]; then
+            DOCUMENTATION_HOSTING_ARGUMENTS=(--hosting-base-path "$DOCUMENTATION_HOSTING_BASE_PATH")
+          fi
+
+          xcrun docc process-archive transform-for-static-hosting \
+            .build/documentation/Build/Products/Debug/Purpl.doccarchive \
+            --output-path .build/purpl-documentation \
+            "${DOCUMENTATION_HOSTING_ARGUMENTS[@]}"
+          xcrun docc process-archive transform-for-static-hosting \
+            .build/documentation/Build/Products/Debug/PurplUI.doccarchive \
+            --output-path .build/purpl-ui-documentation \
+            "${DOCUMENTATION_HOSTING_ARGUMENTS[@]}"
+          mkdir -p .build/documentation-site
+          rsync -a .build/purpl-documentation/ .build/documentation-site/
+          rsync -a .build/purpl-ui-documentation/ .build/documentation-site/
+          cp .github/documentation/index.html .build/documentation-site/index.html
+          touch .build/documentation-site/.nojekyll
+
+      - name: 문서 결과 업로드
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: .build/documentation-site
+
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: GitHub Pages 배포
+        id: deployment
+        uses: actions/deploy-pages@v4

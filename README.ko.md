@@ -103,6 +103,31 @@ PaywallView(paywallIdentifier: "standard") {
 
 원격 페이월 구성은 앱의 Bundle ID와 페이월 식별자로 조회합니다. 실제 상품 조회와 구매는 원격 구성에서도 StoreKit이 처리합니다.
 
+첫 원격 응답 전이나 네트워크 장애 중에도 페이월을 제공하려면 앱의 로컬 구매 구성과 페이월 폴백을 함께 전달합니다. 캐시된 원격 구성이 있으면 이를 가장 먼저 사용하고, 캐시가 없으면 로컬 폴백을 즉시 표시한 뒤 원격 조회에 성공하면 화면을 원격 구성으로 교체합니다.
+
+```swift
+Purchases.configure(
+    purchaseConfiguration,
+    entitlementMode: .server
+)
+
+PaywallView(
+    paywallIdentifier: "standard",
+    fallbackConfiguration: PaywallConfiguration(
+        catalog: standardCatalog,
+        defaultProductIdentifier: yearlyProduct.productIdentifier
+    )
+) {
+    Text("Flow+")
+}
+```
+
+페이월 폴백은 표시 구성에만 적용됩니다. 서버 실패 시 고객 권한도 StoreKit으로 확인하려면 권한 확인 방식을 `serverWithStoreKitFallback`으로 구성하세요.
+
+## API 레퍼런스
+
+[Purpl Swift API Reference](https://swift.purpl.sh/)에서 온라인 문서를 확인할 수 있습니다. Purpl과 PurplUI에는 DocC 카탈로그가 포함되어 있으므로 Xcode에서 **Product > Build Documentation**을 선택해 SDK 소스에서 생성한 전체 API, 지원 플랫폼과 Deprecated 안내를 볼 수도 있습니다.
+
 ## 표시 영역의 책임
 
 `PaywallView`는 상품 표시와 구매 동작을 담당합니다. `NavigationStack`, 탭, 툴바와 닫기 버튼은 여러 페이월을 한 화면에 배치할 수 있도록 앱이 직접 구성합니다.
