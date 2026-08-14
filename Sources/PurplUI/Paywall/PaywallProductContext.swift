@@ -8,35 +8,45 @@
 import Purpl
 import StoreKit
 
-/// 페이월 상품 사용 가능 상태
+// 페이월 상품 사용 가능 상태
+/// The availability of a paywall product.
 public enum PaywallProductAvailability: Equatable, Sendable {
-    /// StoreKit 상품 확인 중
+    // StoreKit 상품 확인 중
+    /// The StoreKit product is loading.
     case loading
 
-    /// StoreKit 상품 사용 가능
+    // StoreKit 상품 사용 가능
+    /// The StoreKit product is available.
     case available
 
-    /// StoreKit 상품 사용 불가
+    // StoreKit 상품 사용 불가
+    /// The StoreKit product is unavailable.
     case unavailable
 }
 
-/// 사용자 정의 페이월 상품 콘텐츠에 전달하는 상태
+// 사용자 정의 페이월 상품 콘텐츠에 전달하는 상태
+/// Product state provided to custom paywall product content.
 public struct PaywallProductContext: Identifiable, Sendable {
-    /// 구매 옵션 식별자
+    // 구매 옵션 식별자
+    /// The purchase option identifier.
     public var id: String {
         catalogProduct.id
     }
 
-    /// 앱에서 구성한 구매 상품
+    // 앱에서 구성한 구매 상품
+    /// The purchase product configured by the app.
     public let catalogProduct: PurchaseProduct
 
-    /// StoreKit에서 불러온 상품
+    // StoreKit에서 불러온 상품
+    /// The product loaded from StoreKit.
     public let storeProduct: Product?
 
-    /// 원격 페이월에서 해결한 선택 표시 제목
+    // 원격 페이월에서 해결한 선택 표시 제목
+    /// The optional display title resolved by the remote paywall.
     public let displayTitle: String?
 
-    /// 원격 페이월에서 해결한 선택 표시 설명
+    // 원격 페이월에서 해결한 선택 표시 설명
+    /// The optional display description resolved by the remote paywall.
     public let displayDescription: String?
 
     /// 로컬 또는 원격 구성에서 상품 제목을 직접 지정했는지 여부
@@ -44,19 +54,24 @@ public struct PaywallProductContext: Identifiable, Sendable {
         displayTitle != nil || catalogProduct.titleResource != nil
     }
 
-    /// StoreKit 상품 사용 가능 상태
+    // StoreKit 상품 사용 가능 상태
+    /// The availability of the StoreKit product.
     public let availability: PaywallProductAvailability
 
-    /// 현재 선택 여부
+    // 현재 선택 여부
+    /// A Boolean value that indicates whether the product is selected.
     public let isSelected: Bool
 
-    /// 현재 StoreKit 상품 보유 여부
+    // 현재 StoreKit 상품 보유 여부
+    /// A Boolean value that indicates whether the customer owns the StoreKit product.
     public let isOwned: Bool
 
-    /// 연결된 구매 권한 활성 여부
+    // 연결된 구매 권한 활성 여부
+    /// A Boolean value that indicates whether an associated purchase entitlement is active.
     public let isEntitlementActive: Bool
 
-    /// 같은 권한 상품의 구매 결과 확인 대기 상태
+    // 같은 권한 상품의 구매 결과 확인 대기 상태
+    /// The pending purchase resolution state for products that grant the same entitlement.
     public let purchaseResolutionState: PaywallPurchaseResolutionState?
 
     /// 사용자 정의 페이월 상품 상태 생성

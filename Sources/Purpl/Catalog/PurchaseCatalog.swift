@@ -7,20 +7,25 @@
 
 import Foundation
 
-/// 함께 판매할 상품과 표시 순서를 정의하는 구매 카탈로그
+// 함께 판매할 상품과 표시 순서를 정의하는 구매 카탈로그
+/// A purchase catalog that defines the products sold together and their display order.
 public struct PurchaseCatalog: Identifiable, Sendable {
-    /// 구매 카탈로그 식별자
+    // 구매 카탈로그 식별자
+    /// The purchase catalog identifier.
     public let identifier: String
 
-    /// 카탈로그 식별자
+    // 카탈로그 식별자
+    /// The catalog identifier.
     public var id: String {
         identifier
     }
 
-    /// 표시 순서대로 정렬한 StoreKit 상품 식별자 목록
+    // 표시 순서대로 정렬한 StoreKit 상품 식별자 목록
+    /// The StoreKit product identifiers in display order.
     public let productIdentifiers: [String]
 
-    /// 상품 식별자로 구매 카탈로그 생성
+    // 상품 식별자로 구매 카탈로그 생성
+    /// Creates a purchase catalog from product identifiers.
     public init(
         identifier: String,
         productIdentifiers: [String]
@@ -48,7 +53,8 @@ public struct PurchaseCatalog: Identifiable, Sendable {
         self.productIdentifiers = productIdentifiers
     }
 
-    /// 구매 상품으로 구매 카탈로그 생성
+    // 구매 상품으로 구매 카탈로그 생성
+    /// Creates a purchase catalog from purchase products.
     public init(
         identifier: String,
         products: [PurchaseProduct]
@@ -59,9 +65,10 @@ public struct PurchaseCatalog: Identifiable, Sendable {
         )
     }
 
-    /// 전체 구매 구성에서 카탈로그 순서에 맞는 상품 조회
-    /// - Parameter configuration: 앱 전체 구매 구성
-    /// - Returns: 카탈로그에 포함된 구매 상품 목록
+    // 전체 구매 구성에서 카탈로그 순서에 맞는 상품 조회
+    /// Returns the products from a purchase configuration in catalog order.
+    /// - Parameter configuration: The app-wide purchase configuration.
+    /// - Returns: The purchase products included in the catalog.
     public func products(
         in configuration: PurchaseConfiguration
     ) -> [PurchaseProduct] {

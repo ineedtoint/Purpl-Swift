@@ -10,18 +10,23 @@ import Purpl
 import Observation
 import StoreKit
 
-/// 페이월 구매 복원 안내
+// 페이월 구매 복원 안내
+/// A notice that describes the result of restoring paywall purchases.
 public enum PaywallRestoreNotice: Equatable, Sendable {
-    /// 복원 내역 없음
+    // 복원 내역 없음
+    /// No restorable purchases were found.
     case notFound
 
-    /// 복원 성공
+    // 복원 성공
+    /// Purchases were restored successfully.
     case succeeded
 
-    /// 복원 실패
+    // 복원 실패
+    /// Purchase restoration failed.
     case failed
 
-    /// 안내 메시지
+    // 안내 메시지
+    /// The localized message for the restore notice.
     public var messageResource: LocalizedStringResource {
         switch self {
         case .notFound:
@@ -46,24 +51,31 @@ public enum PaywallRestoreNotice: Equatable, Sendable {
     }
 }
 
-/// 페이월 고객 정보 준비 상태
+// 페이월 고객 정보 준비 상태
+/// The loading state of customer information on a paywall.
 public enum PaywallCustomerInfoState: Equatable, Sendable {
-    /// 고객 정보 조회 전
+    // 고객 정보 조회 전
+    /// Customer information hasn't been requested.
     case idle
 
-    /// 고객 정보 조회 중
+    // 고객 정보 조회 중
+    /// Customer information is loading.
     case loading
 
-    /// 고객 정보 조회 완료
+    // 고객 정보 조회 완료
+    /// Customer information loaded successfully.
     case loaded
 
-    /// 고객 정보 조회 실패
+    // 고객 정보 조회 실패
+    /// Customer information loading failed.
     case failed
 }
 
-/// 페이월 구매 결과 확인 대기 상태
+// 페이월 구매 결과 확인 대기 상태
+/// A state that indicates a paywall purchase is awaiting resolution.
 public enum PaywallPurchaseResolutionState: Equatable, Sendable {
-    /// 보호자 승인 등 StoreKit 구매 완료 대기
+    // 보호자 승인 등 StoreKit 구매 완료 대기
+    /// The StoreKit purchase is awaiting approval or another pending resolution.
     case pendingApproval
 }
 
@@ -92,16 +104,19 @@ enum PaywallPurchaseAvailabilityPolicy {
     }
 }
 
-/// 페이월 상태와 구매 동작 모델
+// 페이월 상태와 구매 동작 모델
+/// A model that manages paywall state and purchase operations.
 @MainActor
 @Observable
 public final class PaywallModel {
     // MARK: - 구성
 
-    /// 페이월 구성
+    // 페이월 구성
+    /// The paywall configuration.
     public private(set) var configuration: PaywallConfiguration
 
-    /// 페이월 상품을 해석하는 앱 전체 구매 구성
+    // 페이월 상품을 해석하는 앱 전체 구매 구성
+    /// The app-wide purchase configuration used to resolve paywall products.
     public private(set) var purchaseConfiguration: PurchaseConfiguration
 
     /// 원격 페이월 구성 식별자
@@ -113,7 +128,8 @@ public final class PaywallModel {
     /// 원격 페이월을 사용할 수 없을 때 사용할 로컬 페이월 구성
     private let fallbackPaywallConfiguration: PaywallConfiguration?
 
-    /// 원격 페이월 구성 조회 진행 여부
+    // 원격 페이월 구성 조회 진행 여부
+    /// A Boolean value that indicates whether a remote paywall configuration is loading.
     public private(set) var isLoadingConfiguration = false
 
     /// 원격 페이월 구성 조회 완료 여부
@@ -128,7 +144,8 @@ public final class PaywallModel {
         localeIdentifier: String
     )?
 
-    /// 원격 페이월 구성 조회 오류
+    // 원격 페이월 구성 조회 오류
+    /// The error from loading a remote paywall configuration.
     public private(set) var configurationError: (any Error)?
 
     /// 현재 페이월 상품 목록 순서에 맞는 상품 목록
@@ -138,40 +155,50 @@ public final class PaywallModel {
 
     // MARK: - 상품 상태
 
-    /// StoreKit 상품 목록
+    // StoreKit 상품 목록
+    /// The products loaded from StoreKit.
     public private(set) var products: [Product] = []
 
-    /// 상품 조회 진행 여부
+    // 상품 조회 진행 여부
+    /// A Boolean value that indicates whether StoreKit products are loading.
     public private(set) var isLoadingProducts = false
 
-    /// 상품 조회 완료 경험 여부
+    // 상품 조회 완료 경험 여부
+    /// A Boolean value that indicates whether product loading has completed at least once.
     public private(set) var hasCompletedProductLoading = false
 
-    /// 구매 진행 중인 StoreKit 상품 식별자
+    // 구매 진행 중인 StoreKit 상품 식별자
+    /// The StoreKit product identifier currently being purchased.
     public private(set) var purchasingProductIdentifier: String?
 
-    /// 구매 복원 진행 여부
+    // 구매 복원 진행 여부
+    /// A Boolean value that indicates whether purchase restoration is in progress.
     public private(set) var isRestoring = false
 
     /// 구매 복원을 시작한 앱 계정 변경 순번
     private var restoringAccountRevision: Int?
 
-    /// StoreKit 상품 식별자별 구매 결과 확인 대기 상태
+    // StoreKit 상품 식별자별 구매 결과 확인 대기 상태
+    /// Pending purchase resolution states keyed by StoreKit product identifier.
     public private(set) var purchaseResolutionStates =
         [String: PaywallPurchaseResolutionState]()
 
     // MARK: - 권한 상태
 
-    /// 활성 StoreKit 상품 식별자 목록
+    // 활성 StoreKit 상품 식별자 목록
+    /// The active StoreKit product identifiers.
     public private(set) var activeProductIdentifiers = Set<String>()
 
-    /// 활성 구매 권한 식별자 목록
+    // 활성 구매 권한 식별자 목록
+    /// The active purchase entitlement identifiers.
     public private(set) var activeEntitlementIdentifiers = Set<String>()
 
-    /// 고객 정보 준비 상태
+    // 고객 정보 준비 상태
+    /// The loading state of customer information.
     public private(set) var customerInfoState: PaywallCustomerInfoState = .idle
 
-    /// 현재 카탈로그의 활성 구매 권한 보유 여부
+    // 현재 카탈로그의 활성 구매 권한 보유 여부
+    /// A Boolean value that indicates whether the customer has an active entitlement for the current catalog.
     public var hasActiveEntitlement: Bool {
         configuredProducts.contains { product in
             !product.entitlementIdentifiers.isDisjoint(
@@ -180,7 +207,8 @@ public final class PaywallModel {
         }
     }
 
-    /// 현재 카탈로그에서 StoreKit이 보유 중이라고 확인한 상품 존재 여부
+    // 현재 카탈로그에서 StoreKit이 보유 중이라고 확인한 상품 존재 여부
+    /// A Boolean value that indicates whether StoreKit reports an owned product in the current catalog.
     public var hasOwnedCatalogProduct: Bool {
         configuredProducts.contains { product in
             activeProductIdentifiers.contains(product.productIdentifier)
@@ -189,15 +217,18 @@ public final class PaywallModel {
 
     // MARK: - 선택 상태
 
-    /// 선택된 구매 옵션 식별자
+    // 선택된 구매 옵션 식별자
+    /// The selected purchase option identifier.
     public private(set) var selectedOptionIdentifier: String?
 
-    /// 선택된 구매 상품
+    // 선택된 구매 상품
+    /// The selected purchase product.
     public var selectedCatalogProduct: PurchaseProduct? {
         purchaseConfiguration.product(for: selectedOptionIdentifier)
     }
 
-    /// 선택된 StoreKit 상품
+    // 선택된 StoreKit 상품
+    /// The selected StoreKit product.
     public var selectedStoreProduct: Product? {
         guard let selectedCatalogProduct else {
             return nil
@@ -206,7 +237,8 @@ public final class PaywallModel {
         return product(for: selectedCatalogProduct)
     }
 
-    /// 선택된 StoreKit 상품 보유 여부
+    // 선택된 StoreKit 상품 보유 여부
+    /// A Boolean value that indicates whether the customer owns the selected StoreKit product.
     public var isSelectedProductOwned: Bool {
         guard let selectedCatalogProduct else {
             return false
@@ -217,7 +249,8 @@ public final class PaywallModel {
 
     // MARK: - 화면 상태
 
-    /// 화면에 표시할 구매 상품 목록
+    // 화면에 표시할 구매 상품 목록
+    /// The purchase products currently visible on the paywall.
     public var visibleCatalogProducts: [PurchaseProduct] {
         PaywallProductVisibilityPolicy.visibleProducts(
             configuredProducts: configuredProducts,
@@ -228,12 +261,14 @@ public final class PaywallModel {
         )
     }
 
-    /// 구매 또는 복원 처리 진행 여부
+    // 구매 또는 복원 처리 진행 여부
+    /// A Boolean value that indicates whether a purchase or restoration operation is in progress.
     public var isProcessing: Bool {
         purchasingProductIdentifier != nil || isRestoring
     }
 
-    /// 선택된 상품의 구매 버튼 비활성화 여부
+    // 선택된 상품의 구매 버튼 비활성화 여부
+    /// A Boolean value that indicates whether the purchase button is disabled for the selected product.
     public var isPurchaseButtonDisabled: Bool {
         PaywallPurchaseAvailabilityPolicy.isPurchaseButtonDisabled(
             hasSelectedStoreProduct: selectedStoreProduct != nil,
@@ -244,7 +279,8 @@ public final class PaywallModel {
         )
     }
 
-    /// 사용자에게 표시할 구매 복원 안내
+    // 사용자에게 표시할 구매 복원 안내
+    /// The purchase restoration notice shown to the customer.
     public private(set) var restoreNotice: PaywallRestoreNotice?
 
     // MARK: - 의존성
@@ -296,9 +332,10 @@ public final class PaywallModel {
 
     // MARK: - 생성
 
-    /// 페이월 모델 생성
+    // 페이월 모델 생성
+    /// Creates a local paywall model.
     ///
-    /// 앱 실행 중 `Purchases.configure`를 먼저 호출해야 한다.
+    /// Call `Purchases.configure` before creating the model.
     public convenience init(
         configuration: PaywallConfiguration,
         purchases: Purchases = .shared
@@ -320,16 +357,15 @@ public final class PaywallModel {
         )
     }
 
-    /// Purpl 원격 페이월 모델 생성
+    // Purpl 원격 페이월 모델 생성
+    /// Creates a remote Purpl paywall model.
     ///
-    /// 앱 실행 중 `Purchases.configure`를 먼저 호출해야 한다.
-    /// 로컬 폴백을 전달하면 원격 캐시와 서버 구성을 모두 사용할 수 없을 때
-    /// `Purchases.configure`에 전달한 구매 구성으로 페이월을 표시한다.
+    /// Call `Purchases.configure` before creating the model. When you provide a local fallback and neither the remote cache nor server configuration is available, the model presents the paywall using the purchase configuration passed to `Purchases.configure`.
     ///
     /// - Parameters:
-    ///   - paywallIdentifier: Purpl 웹에서 정의한 페이월 구성 식별자
-    ///   - fallbackConfiguration: 원격 페이월을 사용할 수 없을 때 표시할 선택 로컬 구성
-    ///   - purchases: 페이월 구성과 구매를 처리할 Purpl 인스턴스
+    ///   - paywallIdentifier: The paywall configuration identifier defined in Purpl.
+    ///   - fallbackConfiguration: An optional local configuration shown when the remote paywall is unavailable.
+    ///   - purchases: The Purpl instance that handles paywall configuration and purchases.
     public convenience init(
         paywallIdentifier: String,
         fallbackConfiguration: PaywallConfiguration? = nil,
@@ -404,18 +440,17 @@ public final class PaywallModel {
         customerInfoTask?.cancel()
     }
 
-    /// 프리뷰용 페이월 모델 반환
+    // 프리뷰용 페이월 모델 반환
+    /// Creates a paywall model for previews.
     ///
-    /// 전달한 구매 구성과 페이월 구성의 기본 선택 상품, 안내 문구와 정책 주소를 그대로
-    /// 사용한다. 실제 StoreKit 상품 조회, 결제, 구매 복원과 고객 정보 조회는
-    /// 실행하지 않는다.
+    /// The preview uses the supplied purchase configuration, default selected product, notices, and policy URLs without loading StoreKit products, making purchases, restoring purchases, or loading customer information.
     ///
     /// - Parameters:
-    ///   - purchaseConfiguration: 프리뷰에서 상품 목록을 해석할 앱 전체 구매 구성
-    ///   - configuration: 프리뷰에 표시할 페이월 구성
-    ///   - activeProductIdentifiers: 구매한 것으로 표시할 `PurchaseProduct.productIdentifier` 목록
-    ///   - activeEntitlementIdentifiers: 활성 상태로 표시할 `PurchaseEntitlement.identifier` 목록
-    /// - Returns: 지정한 상품 및 권한 상태가 적용된 프리뷰용 페이월 모델
+    ///   - purchaseConfiguration: The app-wide purchase configuration used to resolve products in the preview.
+    ///   - configuration: The paywall configuration displayed in the preview.
+    ///   - activeProductIdentifiers: The `PurchaseProduct.productIdentifier` values shown as purchased.
+    ///   - activeEntitlementIdentifiers: The `PurchaseEntitlement.identifier` values shown as active.
+    /// - Returns: A preview paywall model with the specified product and entitlement state.
     public static func preview(
         purchaseConfiguration: PurchaseConfiguration,
         configuration: PaywallConfiguration,
@@ -439,10 +474,11 @@ public final class PaywallModel {
 
     // MARK: - 생명주기
 
-    /// 페이월에 필요한 상품과 고객 정보 준비
+    // 페이월에 필요한 상품과 고객 정보 준비
+    /// Prepares the products and customer information required by the paywall.
     /// - Parameters:
-    ///   - applicationAccountIdentifier: 현재 앱 사용자를 연결할 선택 UUID
-    ///   - localeIdentifier: 페이월 표시 문구에 사용할 현재 로케일 식별자
+    ///   - applicationAccountIdentifier: An optional UUID that identifies the current app user.
+    ///   - localeIdentifier: The locale identifier used for paywall display content.
     public func prepare(
         applicationAccountIdentifier: UUID? = nil,
         localeIdentifier: String = Locale.current.identifier
@@ -773,7 +809,8 @@ public final class PaywallModel {
         )
     }
 
-    /// 고객 정보 변경 감시 중단
+    // 고객 정보 변경 감시 중단
+    /// Stops observing customer information updates.
     public func stopObservingCustomerInfoUpdates() {
         isCustomerInfoObservationEnabled = false
         customerInfoTask?.cancel()
@@ -782,25 +819,28 @@ public final class PaywallModel {
 
     // MARK: - 복원 안내
 
-    /// 표시 중인 구매 복원 안내 제거
+    // 표시 중인 구매 복원 안내 제거
+    /// Clears the purchase restoration notice currently being displayed.
     public func clearRestoreNotice() {
         restoreNotice = nil
     }
 
     // MARK: - 상품 조회
 
-    /// 구매 상품에 맞는 StoreKit 상품 반환
-    /// - Parameter catalogProduct: 앱에서 구성한 구매 상품
-    /// - Returns: StoreKit에서 불러온 상품
+    // 구매 상품에 맞는 StoreKit 상품 반환
+    /// Returns the StoreKit product that matches a purchase product.
+    /// - Parameter catalogProduct: The purchase product configured by the app.
+    /// - Returns: The matching product loaded from StoreKit, if one exists.
     public func product(for catalogProduct: PurchaseProduct) -> Product? {
         products.first { product in
             product.id == catalogProduct.productIdentifier
         }
     }
 
-    /// 사용자 정의 상품 콘텐츠에 전달할 상태 반환
-    /// - Parameter catalogProduct: 앱에서 구성한 구매 상품
-    /// - Returns: 상품 표시와 선택 상태
+    // 사용자 정의 상품 콘텐츠에 전달할 상태 반환
+    /// Returns the state provided to custom product content.
+    /// - Parameter catalogProduct: The purchase product configured by the app.
+    /// - Returns: The product display and selection state.
     public func context(for catalogProduct: PurchaseProduct) -> PaywallProductContext {
         let storeProduct = product(for: catalogProduct)
         let displayContent = configuration.productDisplayContents.first { content in
@@ -829,13 +869,15 @@ public final class PaywallModel {
         )
     }
 
-    /// StoreKit 상품 목록을 필요한 경우에만 조회
+    // StoreKit 상품 목록을 필요한 경우에만 조회
+    /// Loads StoreKit products only when needed.
     public func loadProductsIfNeeded() async {
         let currentProductLoadingTask = startProductLoadingIfNeeded()
         await currentProductLoadingTask?.value
     }
 
-    /// 현재 StoreKit 권한 상품 상태 갱신
+    // 현재 StoreKit 권한 상품 상태 갱신
+    /// Refreshes the current StoreKit entitlement product state.
     public func refreshStoreKitEntitlementProducts() async {
         guard let purchaseService else {
             return
@@ -928,8 +970,9 @@ public final class PaywallModel {
 
     // MARK: - 상품 선택
 
-    /// 구매 상품 선택
-    /// - Parameter catalogProduct: 선택할 구매 상품
+    // 구매 상품 선택
+    /// Selects a purchase product.
+    /// - Parameter catalogProduct: The purchase product to select.
     public func select(_ catalogProduct: PurchaseProduct) {
         guard !isProcessing else {
             return
@@ -938,32 +981,36 @@ public final class PaywallModel {
         selectedOptionIdentifier = catalogProduct.id
     }
 
-    /// 구매 상품 선택 여부 반환
-    /// - Parameter catalogProduct: 확인할 구매 상품
-    /// - Returns: 현재 선택 여부
+    // 구매 상품 선택 여부 반환
+    /// Returns whether a purchase product is selected.
+    /// - Parameter catalogProduct: The purchase product to check.
+    /// - Returns: `true` when the product is selected; otherwise, `false`.
     public func isSelected(_ catalogProduct: PurchaseProduct) -> Bool {
         selectedOptionIdentifier == catalogProduct.id
     }
 
-    /// StoreKit 상품 보유 여부 반환
-    /// - Parameter catalogProduct: 확인할 구매 상품
-    /// - Returns: 현재 상품 보유 여부
+    // StoreKit 상품 보유 여부 반환
+    /// Returns whether the customer owns the StoreKit product.
+    /// - Parameter catalogProduct: The purchase product to check.
+    /// - Returns: `true` when the customer owns the product; otherwise, `false`.
     public func isOwned(_ catalogProduct: PurchaseProduct) -> Bool {
         activeProductIdentifiers.contains(catalogProduct.productIdentifier)
     }
 
-    /// 구매 상품의 권한 활성 여부 반환
-    /// - Parameter catalogProduct: 확인할 구매 상품
-    /// - Returns: 연결된 구매 권한 활성 여부
+    // 구매 상품의 권한 활성 여부 반환
+    /// Returns whether an entitlement associated with a purchase product is active.
+    /// - Parameter catalogProduct: The purchase product to check.
+    /// - Returns: `true` when an associated purchase entitlement is active; otherwise, `false`.
     public func isEntitlementActive(_ catalogProduct: PurchaseProduct) -> Bool {
         !catalogProduct.entitlementIdentifiers.isDisjoint(
             with: activeEntitlementIdentifiers
         )
     }
 
-    /// 구매 결과 확인 대기 상태 반환
-    /// - Parameter catalogProduct: 확인할 구매 상품
-    /// - Returns: 같은 권한 상품의 구매 결과 확인 대기 상태
+    // 구매 결과 확인 대기 상태 반환
+    /// Returns the pending purchase resolution state for a purchase product.
+    /// - Parameter catalogProduct: The purchase product to check.
+    /// - Returns: The pending resolution state from products that grant the same entitlement, if one exists.
     public func purchaseResolutionState(
         for catalogProduct: PurchaseProduct
     ) -> PaywallPurchaseResolutionState? {
@@ -983,16 +1030,18 @@ public final class PaywallModel {
             .first
     }
 
-    /// 구매 결과 확인 대기 여부 반환
-    /// - Parameter catalogProduct: 확인할 구매 상품
-    /// - Returns: 같은 권한 상품의 구매 결과를 기다리는지 여부
+    // 구매 결과 확인 대기 여부 반환
+    /// Returns whether a purchase product is awaiting resolution.
+    /// - Parameter catalogProduct: The purchase product to check.
+    /// - Returns: `true` when a product that grants the same entitlement is awaiting resolution; otherwise, `false`.
     public func isPurchaseAwaitingResolution(
         _ catalogProduct: PurchaseProduct
     ) -> Bool {
         purchaseResolutionState(for: catalogProduct) != nil
     }
 
-    /// 선택된 상품의 구매 결과 확인 대기 상태
+    // 선택된 상품의 구매 결과 확인 대기 상태
+    /// The pending purchase resolution state for the selected product.
     public var selectedPurchaseResolutionState: PaywallPurchaseResolutionState? {
         guard let selectedCatalogProduct else {
             return nil
@@ -1001,15 +1050,17 @@ public final class PaywallModel {
         return purchaseResolutionState(for: selectedCatalogProduct)
     }
 
-    /// 선택된 상품의 구매 결과 확인 대기 여부
+    // 선택된 상품의 구매 결과 확인 대기 여부
+    /// A Boolean value that indicates whether the selected product is awaiting purchase resolution.
     public var isSelectedPurchaseAwaitingResolution: Bool {
         selectedPurchaseResolutionState != nil
     }
 
     // MARK: - 구매
 
-    /// 선택된 StoreKit 상품 구매
-    /// - Returns: 구매를 시작하지 못하면 `nil`, 그 외 StoreKit 구매 처리 상태
+    // 선택된 StoreKit 상품 구매
+    /// Purchases the selected StoreKit product.
+    /// - Returns: `nil` when the purchase can't start; otherwise, the StoreKit purchase result.
     public func purchaseSelectedProduct() async throws -> PurchaseResult? {
         let requestedAccountRevision = applicationAccountRevision
 
@@ -1072,8 +1123,9 @@ public final class PaywallModel {
 
     // MARK: - 구매 복원
 
-    /// App Store 구매 내역 복원
-    /// - Returns: 복원을 시작하지 못하면 `nil`, StoreKit 동기화 성공 여부
+    // App Store 구매 내역 복원
+    /// Restores App Store purchase history.
+    /// - Returns: `nil` when restoration can't start; otherwise, whether StoreKit synchronization succeeded.
     @discardableResult
     public func restorePurchases() async -> Bool? {
         guard let purchaseService else {
@@ -1120,8 +1172,9 @@ public final class PaywallModel {
 
     // MARK: - 고객 정보
 
-    /// 최신 고객 정보 조회와 권한 상태 반영
-    /// - Parameter applicationAccountIdentifier: 현재 앱 사용자를 연결할 선택 UUID
+    // 최신 고객 정보 조회와 권한 상태 반영
+    /// Loads the latest customer information and applies the entitlement state.
+    /// - Parameter applicationAccountIdentifier: An optional UUID that identifies the current app user.
     public func refreshCustomerInfo(
         applicationAccountIdentifier: UUID? = nil
     ) async throws {

@@ -8,28 +8,33 @@
 import Foundation
 import SwiftUI
 
-/// 고객 정보 작업 상태
+// 고객 정보 작업 상태
+/// The state of a customer information task.
 public enum CustomerInfoTaskState {
-    /// 최초 고객 정보 확인 중
+    // 최초 고객 정보 확인 중
+    /// The task is loading the initial customer information.
     case loading
 
-    /// 고객 정보 확인 성공
+    // 고객 정보 확인 성공
+    /// The task loaded customer information successfully.
     case success(CustomerInfo)
 
-    /// 고객 정보 확인 실패
+    // 고객 정보 확인 실패
+    /// The task failed to load customer information.
     case failure(any Error)
 }
 
 public extension View {
-    /// 뷰가 표시되는 동안 고객 정보를 동기화하고 이후 변경을 전달
+    // 뷰가 표시되는 동안 고객 정보를 동기화하고 이후 변경을 전달
+    /// Synchronizes customer information while the view is visible and delivers subsequent updates.
     ///
-    /// 앱 실행 중 `Purchases.configure`를 먼저 호출해야 한다.
+    /// Call ``Purchases/configure(_:)`` or ``Purchases/configure(_:entitlementMode:)`` before using this modifier.
     ///
     /// - Parameters:
-    ///   - applicationAccountIdentifier: 현재 앱 사용자를 고객의 추가 신원으로 연결할 선택 UUID
-    ///   - priority: 고객 정보 작업 우선순위
-    ///   - action: 고객 정보 작업 상태가 변경될 때 실행할 비동기 작업
-    /// - Returns: 고객 정보 작업을 연결한 뷰
+    ///   - applicationAccountIdentifier: An optional UUID that links the current app user as an additional customer identity.
+    ///   - priority: The priority of the customer information task.
+    ///   - action: An asynchronous action that runs when the customer information task state changes.
+    /// - Returns: A view with the customer information task attached.
     func customerInfoTask(
         for applicationAccountIdentifier: UUID?,
         priority: TaskPriority = .medium,

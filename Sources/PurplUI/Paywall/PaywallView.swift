@@ -9,7 +9,8 @@ import Foundation
 import Purpl
 import SwiftUI
 
-/// 기본 디자인과 사용자 정의 상품 카드를 지원하는 페이월
+// 기본 디자인과 사용자 정의 상품 카드를 지원하는 페이월
+/// A paywall that supports the default design and custom product cards.
 public struct PaywallView<MarketingContent: View, ProductContent: View>: View {
     /// 현재 SwiftUI 로케일
     @Environment(\.locale) private var locale
@@ -35,21 +36,21 @@ public struct PaywallView<MarketingContent: View, ProductContent: View>: View {
     /// 페이월 상태 모델
     @State private var model: PaywallModel
 
-    /// 사용자 정의 상품 카드를 사용하는 페이월 생성
+    // 사용자 정의 상품 카드를 사용하는 페이월 생성
+    /// Creates a paywall with custom product cards.
     ///
-    /// 앱 실행 중 `Purchases.configure`를 먼저 호출해야 한다.
+    /// Call `Purchases.configure` before presenting the paywall.
     ///
-    /// `productContent`가 반환하는 콘텐츠 전체를 SDK가 선택 버튼으로 감싼다.
-    /// 콘텐츠 안에는 다른 버튼이나 링크처럼 중첩되는 상호작용 뷰를 넣지 않는다.
+    /// The SDK wraps all content returned by `productContent` in a selection button. Don't place nested interactive views, such as buttons or links, inside that content.
     ///
     /// - Parameters:
-    ///   - configuration: 페이월 구성
-    ///   - style: 기본 화면과 하단 구매 영역 스타일
-    ///   - appAccountToken: 로그인 사용자의 구매를 앱 계정과 연결할 선택 UUID
-    ///   - purchaseResultAction: StoreKit 구매 처리 결과 액션
-    ///   - purchaseFailureAction: StoreKit 구매 처리 실패 액션
-    ///   - marketingContent: 앱별 마케팅 콘텐츠
-    ///   - productContent: 구매 상품별 사용자 정의 콘텐츠
+    ///   - configuration: The paywall configuration.
+    ///   - style: The style of the paywall and bottom purchase area.
+    ///   - appAccountToken: An optional UUID that links the signed-in user's purchase to an app account.
+    ///   - purchaseResultAction: An action that handles the StoreKit purchase result.
+    ///   - purchaseFailureAction: An action that handles a StoreKit purchase failure.
+    ///   - marketingContent: App-specific marketing content.
+    ///   - productContent: Custom content for each purchase product.
     @MainActor
     public init(
         configuration: PaywallConfiguration,
@@ -73,19 +74,20 @@ public struct PaywallView<MarketingContent: View, ProductContent: View>: View {
         )
     }
 
-    /// Purpl 웹에서 구성한 사용자 정의 상품 카드를 사용하는 페이월 생성
+    // Purpl 웹에서 구성한 사용자 정의 상품 카드를 사용하는 페이월 생성
+    /// Creates a paywall with remote Purpl configuration and custom product cards.
     ///
-    /// 앱 실행 중 `Purchases.configure`를 먼저 호출해야 한다.
+    /// Call `Purchases.configure` before presenting the paywall.
     ///
     /// - Parameters:
-    ///   - paywallIdentifier: Purpl 웹에서 정의한 페이월 구성 식별자
-    ///   - fallbackConfiguration: 원격 구성을 사용할 수 없을 때 표시할 선택 로컬 구성
-    ///   - style: 기본 화면과 하단 구매 영역 스타일
-    ///   - appAccountToken: 로그인 사용자의 구매를 앱 계정과 연결할 선택 UUID
-    ///   - purchaseResultAction: StoreKit 구매 처리 결과 액션
-    ///   - purchaseFailureAction: StoreKit 구매 처리 실패 액션
-    ///   - marketingContent: 앱별 마케팅 콘텐츠
-    ///   - productContent: 구매 상품별 사용자 정의 콘텐츠
+    ///   - paywallIdentifier: The paywall configuration identifier defined in Purpl.
+    ///   - fallbackConfiguration: An optional local configuration shown when the remote configuration is unavailable.
+    ///   - style: The style of the paywall and bottom purchase area.
+    ///   - appAccountToken: An optional UUID that links the signed-in user's purchase to an app account.
+    ///   - purchaseResultAction: An action that handles the StoreKit purchase result.
+    ///   - purchaseFailureAction: An action that handles a StoreKit purchase failure.
+    ///   - marketingContent: App-specific marketing content.
+    ///   - productContent: Custom content for each purchase product.
     @MainActor
     public init(
         paywallIdentifier: String,
@@ -113,19 +115,19 @@ public struct PaywallView<MarketingContent: View, ProductContent: View>: View {
         )
     }
 
-    /// 지정한 상태 모델과 사용자 정의 상품 카드를 사용하는 페이월 생성
+    // 지정한 상태 모델과 사용자 정의 상품 카드를 사용하는 페이월 생성
+    /// Creates a paywall with the specified state model and custom product cards.
     ///
-    /// `productContent`가 반환하는 콘텐츠 전체를 SDK가 선택 버튼으로 감싼다.
-    /// 콘텐츠 안에는 다른 버튼이나 링크처럼 중첩되는 상호작용 뷰를 넣지 않는다.
+    /// The SDK wraps all content returned by `productContent` in a selection button. Don't place nested interactive views, such as buttons or links, inside that content.
     ///
     /// - Parameters:
-    ///   - model: 페이월 구성과 상태를 소유하는 모델
-    ///   - style: 기본 화면과 하단 구매 영역 스타일
-    ///   - appAccountToken: 로그인 사용자의 구매를 앱 계정과 연결할 선택 UUID
-    ///   - purchaseResultAction: StoreKit 구매 처리 결과 액션
-    ///   - purchaseFailureAction: StoreKit 구매 처리 실패 액션
-    ///   - marketingContent: 앱별 마케팅 콘텐츠
-    ///   - productContent: 구매 상품별 사용자 정의 콘텐츠
+    ///   - model: The model that owns the paywall configuration and state.
+    ///   - style: The style of the paywall and bottom purchase area.
+    ///   - appAccountToken: An optional UUID that links the signed-in user's purchase to an app account.
+    ///   - purchaseResultAction: An action that handles the StoreKit purchase result.
+    ///   - purchaseFailureAction: An action that handles a StoreKit purchase failure.
+    ///   - marketingContent: App-specific marketing content.
+    ///   - productContent: Custom content for each purchase product.
     @MainActor
     public init(
         model: PaywallModel,
@@ -147,7 +149,8 @@ public struct PaywallView<MarketingContent: View, ProductContent: View>: View {
         self._model = State(initialValue: model)
     }
 
-    /// 페이월 본문
+    // 페이월 본문
+    /// The paywall content.
     public var body: some View {
         ScrollView {
             VStack(spacing: 32) {
@@ -287,17 +290,18 @@ public struct PaywallView<MarketingContent: View, ProductContent: View>: View {
 }
 
 public extension PaywallView where ProductContent == DefaultPaywallProductCard {
-    /// Purpl 기본 상품 카드를 사용하는 페이월 생성
+    // Purpl 기본 상품 카드를 사용하는 페이월 생성
+    /// Creates a paywall with the default Purpl product cards.
     ///
-    /// 앱 실행 중 `Purchases.configure`를 먼저 호출해야 한다.
+    /// Call `Purchases.configure` before presenting the paywall.
     ///
     /// - Parameters:
-    ///   - configuration: 페이월 구성
-    ///   - style: 기본 화면과 상품 카드 스타일
-    ///   - appAccountToken: 로그인 사용자의 구매를 앱 계정과 연결할 선택 UUID
-    ///   - purchaseResultAction: StoreKit 구매 처리 결과 액션
-    ///   - purchaseFailureAction: StoreKit 구매 처리 실패 액션
-    ///   - marketingContent: 앱별 마케팅 콘텐츠
+    ///   - configuration: The paywall configuration.
+    ///   - style: The style of the paywall and product cards.
+    ///   - appAccountToken: An optional UUID that links the signed-in user's purchase to an app account.
+    ///   - purchaseResultAction: An action that handles the StoreKit purchase result.
+    ///   - purchaseFailureAction: An action that handles a StoreKit purchase failure.
+    ///   - marketingContent: App-specific marketing content.
     @MainActor
     init(
         configuration: PaywallConfiguration,
@@ -323,18 +327,19 @@ public extension PaywallView where ProductContent == DefaultPaywallProductCard {
         )
     }
 
-    /// Purpl 웹 구성과 기본 상품 카드를 사용하는 페이월 생성
+    // Purpl 웹 구성과 기본 상품 카드를 사용하는 페이월 생성
+    /// Creates a paywall with remote Purpl configuration and the default product cards.
     ///
-    /// 앱 실행 중 `Purchases.configure`를 먼저 호출해야 한다.
+    /// Call `Purchases.configure` before presenting the paywall.
     ///
     /// - Parameters:
-    ///   - paywallIdentifier: Purpl 웹에서 정의한 페이월 구성 식별자
-    ///   - fallbackConfiguration: 원격 구성을 사용할 수 없을 때 표시할 선택 로컬 구성
-    ///   - style: 기본 화면과 상품 카드 스타일
-    ///   - appAccountToken: 로그인 사용자의 구매를 앱 계정과 연결할 선택 UUID
-    ///   - purchaseResultAction: StoreKit 구매 처리 결과 액션
-    ///   - purchaseFailureAction: StoreKit 구매 처리 실패 액션
-    ///   - marketingContent: 앱별 마케팅 콘텐츠
+    ///   - paywallIdentifier: The paywall configuration identifier defined in Purpl.
+    ///   - fallbackConfiguration: An optional local configuration shown when the remote configuration is unavailable.
+    ///   - style: The style of the paywall and product cards.
+    ///   - appAccountToken: An optional UUID that links the signed-in user's purchase to an app account.
+    ///   - purchaseResultAction: An action that handles the StoreKit purchase result.
+    ///   - purchaseFailureAction: An action that handles a StoreKit purchase failure.
+    ///   - marketingContent: App-specific marketing content.
     @MainActor
     init(
         paywallIdentifier: String,
@@ -362,14 +367,15 @@ public extension PaywallView where ProductContent == DefaultPaywallProductCard {
         )
     }
 
-    /// 지정한 상태 모델과 Purpl 기본 상품 카드를 사용하는 페이월 생성
+    // 지정한 상태 모델과 Purpl 기본 상품 카드를 사용하는 페이월 생성
+    /// Creates a paywall with the specified state model and default Purpl product cards.
     /// - Parameters:
-    ///   - model: 페이월 구성과 상태를 소유하는 모델
-    ///   - style: 기본 화면과 상품 카드 스타일
-    ///   - appAccountToken: 로그인 사용자의 구매를 앱 계정과 연결할 선택 UUID
-    ///   - purchaseResultAction: StoreKit 구매 처리 결과 액션
-    ///   - purchaseFailureAction: StoreKit 구매 처리 실패 액션
-    ///   - marketingContent: 앱별 마케팅 콘텐츠
+    ///   - model: The model that owns the paywall configuration and state.
+    ///   - style: The style of the paywall and product cards.
+    ///   - appAccountToken: An optional UUID that links the signed-in user's purchase to an app account.
+    ///   - purchaseResultAction: An action that handles the StoreKit purchase result.
+    ///   - purchaseFailureAction: An action that handles a StoreKit purchase failure.
+    ///   - marketingContent: App-specific marketing content.
     @MainActor
     init(
         model: PaywallModel,

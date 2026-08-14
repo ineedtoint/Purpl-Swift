@@ -7,32 +7,39 @@
 
 import Foundation
 
-/// 앱에서 판매하는 구매 상품 구성
+// 앱에서 판매하는 구매 상품 구성
+/// A purchase product configuration sold by the app.
 public struct PurchaseProduct: Identifiable, Sendable {
-    /// App Store Connect에 등록한 StoreKit 상품 식별자
+    // App Store Connect에 등록한 StoreKit 상품 식별자
+    /// The StoreKit product identifier registered in App Store Connect.
     public let productIdentifier: String
 
-    /// 목록 식별자
+    // 목록 식별자
+    /// The identifier used for identifiable collections.
     public var id: String {
         productIdentifier
     }
 
-    /// 구매 후 활성화되는 권한 식별자 목록
+    // 구매 후 활성화되는 권한 식별자 목록
+    /// The entitlement identifiers activated by the purchase.
     ///
-    /// 별도 앱 권한에 매핑하지 않는 상품은 빈 집합을 사용한다.
+    /// Use an empty set for a product that doesn't map to an app entitlement.
     public let entitlementIdentifiers: Set<String>
 
-    /// 상품 표시 제목
+    // 상품 표시 제목
+    /// The localized display title for the product.
     ///
-    /// `nil`이면 기본 페이월에서 StoreKit 상품의 제목과 설명을 사용한다.
+    /// When this value is `nil`, the default paywall uses the StoreKit product title and description.
     public let titleResource: LocalizedStringResource?
 
-    /// 상품 표시 설명
+    // 상품 표시 설명
+    /// The localized display description for the product.
     ///
-    /// 앱에서 상품 제목을 직접 지정하면서 설명을 표시하지 않을 때는 `nil`을 사용한다.
+    /// Use `nil` when the app provides a custom title but doesn't want to display a description.
     public let descriptionResource: LocalizedStringResource?
 
-    /// 구매 상품 생성
+    // 구매 상품 생성
+    /// Creates a purchase product.
     public init(
         productIdentifier: String,
         entitlementIdentifiers: Set<String> = [],
@@ -58,7 +65,8 @@ public struct PurchaseProduct: Identifiable, Sendable {
         self.descriptionResource = descriptionResource
     }
 
-    /// 하나의 권한을 지급하는 구매 상품 생성
+    // 하나의 권한을 지급하는 구매 상품 생성
+    /// Creates a purchase product that grants one entitlement.
     public init(
         productIdentifier: String,
         entitlementIdentifier: String,

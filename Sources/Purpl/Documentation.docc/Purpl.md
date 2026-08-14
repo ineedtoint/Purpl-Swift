@@ -1,16 +1,16 @@
 # ``Purpl``
 
-StoreKit 구매, 고객 권한 확인, 복원과 Purpl 서비스 연결을 하나의 일관된 API로 구성합니다.
+Build StoreKit purchases, customer entitlement checks, restoration, and Purpl service integration with one consistent API.
 
 ## Overview
 
-Purpl은 앱에서 직접 정의한 ``PurchaseConfiguration``만으로 사용할 수 있습니다. Purpl 서비스를 연결하면 같은 구매 API를 유지하면서 서버 권한과 원격 페이월 구성을 사용할 수 있습니다.
+Use Purpl with only a ``PurchaseConfiguration`` defined in your app. Connect the Purpl service to keep the same purchase API while adding server-managed entitlements and remote paywall configuration.
 
-상품 정보, 가격과 실제 구매 가능 여부는 항상 StoreKit을 기준으로 판단합니다.
+StoreKit always remains authoritative for product information, pricing, and purchase availability.
 
 ## Topics
 
-### 구매 구성
+### Purchase Configuration
 
 - ``Purchases``
 - ``PurchaseConfiguration``
@@ -19,12 +19,12 @@ Purpl은 앱에서 직접 정의한 ``PurchaseConfiguration``만으로 사용할
 - ``PurchaseCatalog``
 - ``EntitlementMode``
 
-### 상품과 구매
+### Products and Purchases
 
 - ``PurchaseResult``
 - ``PurchasesError``
 
-### 고객 권한
+### Customer Entitlements
 
 - ``CustomerInfo``
 - ``CustomerEntitlement``
@@ -32,7 +32,7 @@ Purpl은 앱에서 직접 정의한 ``PurchaseConfiguration``만으로 사용할
 - ``CustomerInfoSource``
 - ``CustomerInfoTaskState``
 
-### 원격 페이월 구성
+### Remote Paywall Configuration
 
 - ``ResolvedPaywallConfiguration``
 - ``ResolvedPaywallProductContent``

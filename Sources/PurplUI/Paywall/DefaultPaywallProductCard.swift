@@ -9,15 +9,19 @@ import Foundation
 import StoreKit
 import SwiftUI
 
-/// Purpl 기본 페이월 상품 카드
+// Purpl 기본 페이월 상품 카드
+/// The default Purpl paywall product card.
 public struct DefaultPaywallProductCard: View {
-    /// 사용자 정의 콘텐츠에 전달되는 상품 상태
+    // 사용자 정의 콘텐츠에 전달되는 상품 상태
+    /// The product state provided to custom content.
     public let context: PaywallProductContext
 
-    /// 기본 페이월 스타일
+    // 기본 페이월 스타일
+    /// The default paywall style.
     public let style: PaywallStyle
 
-    /// Purpl 기본 페이월 상품 카드 생성
+    // Purpl 기본 페이월 상품 카드 생성
+    /// Creates a default Purpl paywall product card.
     public init(
         context: PaywallProductContext,
         style: PaywallStyle = PaywallStyle()
@@ -26,7 +30,8 @@ public struct DefaultPaywallProductCard: View {
         self.style = style
     }
 
-    /// Purpl 기본 페이월 상품 카드 본문
+    // Purpl 기본 페이월 상품 카드 본문
+    /// The content of the default Purpl paywall product card.
     public var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 16) {
             productTitle

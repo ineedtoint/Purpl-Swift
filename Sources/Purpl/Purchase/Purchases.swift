@@ -17,12 +17,14 @@ import Foundation
 import StoreKit
 import Synchronization
 
-/// Purpl 공개 진입점
+// Purpl 공개 진입점
+/// The primary entry point for Purpl purchase and entitlement operations.
 public final class Purchases: Sendable {
     /// 구성한 공유 인스턴스 저장소
     private static let sharedStorage = Mutex<Purchases?>(nil)
 
-    /// 구성한 Purpl 공유 인스턴스
+    // 구성한 Purpl 공유 인스턴스
+    /// The configured shared Purpl instance.
     public static var shared: Purchases {
         sharedStorage.withLock { purchases in
             guard let purchases else {
@@ -36,7 +38,8 @@ public final class Purchases: Sendable {
     /// StoreKit과 Purchases 서버 작업을 조율하는 내부 코디네이터
     private let coordinator: PurchasesCoordinator
 
-    /// 앱 전체 구매 구성
+    // 앱 전체 구매 구성
+    /// The app-wide purchase configuration.
     public let purchaseConfiguration: PurchaseConfiguration?
 
     /// 고객 권한 확인 방식
@@ -48,7 +51,8 @@ public final class Purchases: Sendable {
     /// 고객 정보 스트림 발행기
     private let customerInfoPublisher: CustomerInfoStreamPublisher
 
-    /// 최신 고객 정보와 이후 변경 정보를 전달하는 스트림
+    // 최신 고객 정보와 이후 변경 정보를 전달하는 스트림
+    /// A stream that delivers the latest customer information and subsequent updates.
     public var customerInfoStream: AsyncStream<CustomerInfo> {
         customerInfoPublisher.makeStream()
     }
@@ -58,9 +62,10 @@ public final class Purchases: Sendable {
         customerInfoPublisher.latestCustomerInfo
     }
 
-    /// 로컬 구매 구성으로 StoreKit 권한 확인과 거래 변경 감시 시작
-    /// - Parameter purchaseConfiguration: 상품 조회와 권한 확인에 사용할 앱 전체 구매 구성
-    /// - Returns: 구성한 Purpl 공유 인스턴스
+    // 로컬 구매 구성으로 StoreKit 권한 확인과 거래 변경 감시 시작
+    /// Configures local StoreKit entitlement resolution and starts observing transaction updates.
+    /// - Parameter purchaseConfiguration: The app-wide purchase configuration used for product loading and entitlement checks.
+    /// - Returns: The configured shared Purpl instance.
     @discardableResult
     public static func configure(
         _ purchaseConfiguration: PurchaseConfiguration
@@ -71,11 +76,12 @@ public final class Purchases: Sendable {
         )
     }
 
-    /// Purpl 구성과 StoreKit 거래 변경 감시 시작
+    // Purpl 구성과 StoreKit 거래 변경 감시 시작
+    /// Configures Purpl and starts observing StoreKit transaction updates.
     /// - Parameters:
-    ///   - purchaseConfiguration: 상품 조회와 StoreKit 권한 확인에 사용할 앱 전체 구매 구성
-    ///   - entitlementMode: 고객 권한을 확인할 방식
-    /// - Returns: 구성한 Purpl 공유 인스턴스
+    ///   - purchaseConfiguration: The app-wide purchase configuration used for product loading and StoreKit entitlement checks.
+    ///   - entitlementMode: The method used to resolve customer entitlements.
+    /// - Returns: The configured shared Purpl instance.
     @discardableResult
     public static func configure(
         _ purchaseConfiguration: PurchaseConfiguration? = nil,
@@ -119,17 +125,19 @@ public final class Purchases: Sendable {
         )
     }
 
-    /// StoreKit 상품 목록 조회
-    /// - Parameter productIdentifiers: 조회할 StoreKit 상품 식별자 목록
-    /// - Returns: StoreKit에서 조회한 상품 목록
-    /// - Throws: StoreKit 상품 조회 실패 오류
+    // StoreKit 상품 목록 조회
+    /// Loads StoreKit products with the specified identifiers.
+    /// - Parameter productIdentifiers: The StoreKit product identifiers to load.
+    /// - Returns: The products returned by StoreKit.
+    /// - Throws: An error when StoreKit product loading fails.
     public func products(for productIdentifiers: [String]) async throws -> [Product] {
         try await coordinator.products(for: productIdentifiers)
     }
 
-    /// 전체 구매 구성의 상품 목록 조회
-    /// - Returns: 구매 구성 순서로 정리한 StoreKit 상품 목록
-    /// - Throws: 구매 구성 누락 또는 StoreKit 상품 조회 실패 오류
+    // 전체 구매 구성의 상품 목록 조회
+    /// Loads all products in the purchase configuration.
+    /// - Returns: StoreKit products in purchase configuration order.
+    /// - Throws: An error when the purchase configuration is missing or StoreKit product loading fails.
     public func products() async throws -> [Product] {
         guard let purchaseConfiguration else {
             throw PurchasesError.missingPurchaseConfiguration
@@ -140,13 +148,13 @@ public final class Purchases: Sendable {
         )
     }
 
-    /// Purpl에서 페이월 구매 구성 조회
+    // Purpl에서 페이월 구매 구성 조회
+    /// Loads a paywall purchase configuration from Purpl.
     ///
-    /// 캐시가 있으면 즉시 반환하고 다음 페이월 표시를 위해 백그라운드에서 갱신한다.
-    /// 캐시가 없으면 서버 응답을 기다린 뒤 저장한다.
+    /// When a cached configuration exists, this method returns it immediately and refreshes it in the background for the next paywall presentation. When no cache exists, it waits for the server response and stores the result.
     ///
-    /// - Parameter paywallIdentifier: Purpl 웹에서 정의한 페이월 구성 식별자
-    /// - Returns: 현재 권한 확인 방식에 맞게 해석한 앱 구매 구성
+    /// - Parameter paywallIdentifier: The paywall configuration identifier defined in Purpl.
+    /// - Returns: An app purchase configuration resolved for the current entitlement mode.
     public func paywallConfiguration(
         for paywallIdentifier: String
     ) async throws -> ResolvedPaywallConfiguration {
@@ -156,11 +164,12 @@ public final class Purchases: Sendable {
         )
     }
 
-    /// Purpl에서 현재 로케일에 맞는 페이월 구매 구성 조회
+    // Purpl에서 현재 로케일에 맞는 페이월 구매 구성 조회
+    /// Loads a paywall purchase configuration from Purpl for the specified locale.
     /// - Parameters:
-    ///   - paywallIdentifier: Purpl 웹에서 정의한 페이월 구성 식별자
-    ///   - localeIdentifier: 기기의 현재 로케일 식별자
-    /// - Returns: 현재 권한 확인 방식에 맞게 해석한 앱 구매 구성
+    ///   - paywallIdentifier: The paywall configuration identifier defined in Purpl.
+    ///   - localeIdentifier: The locale identifier used to resolve localized content.
+    /// - Returns: An app purchase configuration resolved for the current entitlement mode.
     public func paywallConfiguration(
         for paywallIdentifier: String,
         localeIdentifier: String
@@ -232,18 +241,20 @@ public final class Purchases: Sendable {
         )
     }
 
-    /// 현재 고객이 보유한 StoreKit 권한 상품 식별자 조회
+    // 현재 고객이 보유한 StoreKit 권한 상품 식별자 조회
+    /// Returns the StoreKit product identifiers that currently grant entitlements to the customer.
     ///
-    /// StoreKit이 현재 권한으로 인정하는 상품만 결과에 포함된다.
-    /// - Returns: StoreKit이 현재 권한으로 확인한 상품 식별자 목록
+    /// The result includes only products that StoreKit currently recognizes as entitlements.
+    /// - Returns: The product identifiers verified as current entitlements by StoreKit.
     public func currentEntitlementProductIdentifiers() async -> Set<String> {
         await coordinator.currentEntitlementProductIdentifiers()
     }
 
-    /// 현재 고객과 거래를 동기화해 최신 고객 정보 조회
-    /// - Parameter applicationAccountIdentifier: 현재 앱 사용자를 고객의 추가 신원으로 연결할 선택 UUID
-    /// - Returns: 설정한 권한 확인 방식으로 확인한 최신 고객 정보
-    /// - Throws: StoreKit 정보 조회 또는 Purchases 서버 동기화 실패 오류
+    // 현재 고객과 거래를 동기화해 최신 고객 정보 조회
+    /// Synchronizes the current customer and transactions, then returns the latest customer information.
+    /// - Parameter applicationAccountIdentifier: An optional UUID that links the current app user as an additional customer identity.
+    /// - Returns: The latest customer information resolved with the configured entitlement mode.
+    /// - Throws: An error when StoreKit information loading or Purpl server synchronization fails.
     public func customerInfo(
         applicationAccountIdentifier: UUID? = nil
     ) async throws -> CustomerInfo {
@@ -252,12 +263,13 @@ public final class Purchases: Sendable {
         )
     }
 
-    /// StoreKit 상품 구매
+    // StoreKit 상품 구매
+    /// Purchases a StoreKit product.
     /// - Parameters:
-    ///   - product: 구매할 StoreKit 상품
-    ///   - appAccountToken: 로그인 사용자의 구매를 앱 계정과 연결할 선택 UUID
-    /// - Returns: StoreKit 구매 처리 상태
-    /// - Throws: StoreKit 구매 또는 거래 검증 실패 오류
+    ///   - product: The StoreKit product to purchase.
+    ///   - appAccountToken: An optional UUID that links the signed-in user's purchase to an app account.
+    /// - Returns: The StoreKit purchase processing result.
+    /// - Throws: An error when the StoreKit purchase or transaction verification fails.
     public func purchase(
         _ product: Product,
         appAccountToken: UUID? = nil
@@ -268,10 +280,11 @@ public final class Purchases: Sendable {
         )
     }
 
-    /// App Store 구매 내역 복원과 최신 고객 정보 확인
-    /// - Parameter applicationAccountIdentifier: 현재 앱 사용자를 고객의 추가 신원으로 연결할 선택 UUID
-    /// - Returns: 복원 후 설정한 권한 확인 방식으로 확인한 최신 고객 정보
-    /// - Throws: App Store 복원 또는 고객 정보 동기화 실패 오류
+    // App Store 구매 내역 복원과 최신 고객 정보 확인
+    /// Restores App Store purchases and returns the latest customer information.
+    /// - Parameter applicationAccountIdentifier: An optional UUID that links the current app user as an additional customer identity.
+    /// - Returns: The latest customer information resolved with the configured entitlement mode after restoration.
+    /// - Throws: An error when App Store restoration or customer information synchronization fails.
     public func restorePurchases(
         applicationAccountIdentifier: UUID? = nil
     ) async throws -> CustomerInfo {
@@ -280,9 +293,10 @@ public final class Purchases: Sendable {
         )
     }
 
-    /// App Store 구매 내역 동기화
+    // App Store 구매 내역 동기화
+    /// Synchronizes App Store purchase history.
     ///
-    /// 고객 정보 서버 동기화와 관계없이 StoreKit 동기화만 수행한다.
+    /// This method performs only StoreKit synchronization without synchronizing customer information with the server.
     public func synchronizePurchases() async throws {
         try await coordinator.synchronizePurchases()
     }

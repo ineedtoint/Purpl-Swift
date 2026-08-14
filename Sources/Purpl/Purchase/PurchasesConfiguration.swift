@@ -7,15 +7,19 @@
 
 import Foundation
 
-/// 고객 권한을 확인하는 방식
+// 고객 권한을 확인하는 방식
+/// The method used to resolve customer entitlements.
 public enum EntitlementMode: Equatable, Sendable {
-    /// Purpl 서버 권한 사용
+    // Purpl 서버 권한 사용
+    /// Uses entitlements from the Purpl server.
     case server
 
-    /// Purpl 서버를 우선하고 실패하면 StoreKit 권한 사용
+    // Purpl 서버를 우선하고 실패하면 StoreKit 권한 사용
+    /// Uses the Purpl server first and falls back to StoreKit when the server request fails.
     case serverWithStoreKitFallback
 
-    /// Purpl 서버 없이 StoreKit 권한만 사용
+    // Purpl 서버 없이 StoreKit 권한만 사용
+    /// Uses only StoreKit entitlements without the Purpl server.
     case storeKit
 }
 
