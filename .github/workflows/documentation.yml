@@ -39,7 +39,7 @@ jobs:
         id: pages
         uses: actions/configure-pages@v6
 
-      - name: 정적 문서 변환
+      - name: 통합 문서 생성
         env:
           PAGES_BASE_PATH: ${{ steps.pages.outputs.base_path }}
         run: |
@@ -49,17 +49,17 @@ jobs:
             DOCUMENTATION_HOSTING_ARGUMENTS=(--hosting-base-path "$DOCUMENTATION_HOSTING_BASE_PATH")
           fi
 
-          xcrun docc process-archive transform-for-static-hosting \
+          xcrun docc merge \
             .build/documentation/Build/Products/Debug/Purpl.doccarchive \
-            --output-path .build/purpl-documentation \
-            "${DOCUMENTATION_HOSTING_ARGUMENTS[@]}"
-          xcrun docc process-archive transform-for-static-hosting \
             .build/documentation/Build/Products/Debug/PurplUI.doccarchive \
-            --output-path .build/purpl-ui-documentation \
+            --output-path .build/Purpl.doccarchive \
+            --synthesized-landing-page-name Purpl \
+            --synthesized-landing-page-kind Package \
+            --synthesized-landing-page-topics-style detailedGrid
+          xcrun docc process-archive transform-for-static-hosting \
+            .build/Purpl.doccarchive \
+            --output-path .build/documentation-site \
             "${DOCUMENTATION_HOSTING_ARGUMENTS[@]}"
-          mkdir -p .build/documentation-site
-          rsync -a .build/purpl-documentation/ .build/documentation-site/
-          rsync -a .build/purpl-ui-documentation/ .build/documentation-site/
           cp .github/documentation/index.html .build/documentation-site/index.html
           touch .build/documentation-site/.nojekyll
 
