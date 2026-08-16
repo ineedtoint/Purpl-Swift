@@ -22,6 +22,12 @@ https://github.com/ineedtoint/Purpl-Swift.git
 
 구매와 권한 관리만 필요하면 `Purpl`을, 기본 SwiftUI 페이월도 사용하면 `PurplUI`를 함께 연결합니다.
 
+## 예제
+
+[Purpl 예제](Examples/PurplExample)에는 로컬 StoreKit 상품과 바로 실행할 수 있는 SwiftUI 페이월이 포함되어 있습니다. Apple 개발자 계정, App Store Connect 상품, Purpl 계정과 서버가 필요하지 않습니다.
+
+이 저장소를 복제한 뒤 `Examples/PurplExample/PurplExample.xcodeproj`를 열고 iOS 시뮬레이터에서 `PurplExample` 스킴을 실행하세요. 포함된 StoreKit 구성으로 실제 결제 없이 월간·연간·평생 상품의 구매, 복원과 권한 변경을 테스트할 수 있습니다.
+
 ## 로컬 구성
 
 앱 전체에서 사용하는 상품과 각 상품이 제공하는 권한을 `PurchaseConfiguration`에 등록합니다. 판매가 종료된 과거 상품도 기존 구매자의 권한 확인과 복원을 위해 이 구성에는 유지합니다.

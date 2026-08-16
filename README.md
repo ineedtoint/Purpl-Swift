@@ -22,6 +22,12 @@ https://github.com/ineedtoint/Purpl-Swift.git
 
 Link `Purpl` when you only need purchases and entitlement management. Add `PurplUI` when you also want the default SwiftUI paywall.
 
+## Example
+
+The [Purpl Example](Examples/PurplExample) includes local StoreKit products and a ready-to-run SwiftUI paywall. It doesn't require an Apple Developer account, App Store Connect products, a Purpl account, or a server.
+
+Clone this repository, open `Examples/PurplExample/PurplExample.xcodeproj`, select an iOS Simulator, and run the `PurplExample` scheme. The included StoreKit configuration lets you test monthly, yearly, and lifetime purchases, restoration, and entitlement changes without real payments.
+
 ## Local configuration
 
 Register every product used by your app and the entitlements granted by each product in `PurchaseConfiguration`. Keep discontinued products in this configuration so existing purchases can still be restored and recognized.
