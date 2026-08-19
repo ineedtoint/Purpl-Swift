@@ -861,6 +861,7 @@ public final class PaywallModel {
             storeProduct: storeProduct,
             displayTitle: displayContent?.title,
             displayDescription: displayContent?.description,
+            hasRemoteDisplayContent: displayContent != nil,
             availability: availability,
             isSelected: isSelected(catalogProduct),
             isOwned: isOwned(catalogProduct),

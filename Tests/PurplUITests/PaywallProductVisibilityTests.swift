@@ -85,16 +85,25 @@ struct PaywallProductVisibilityTests {
         #expect(visibleProducts.map(\.id) == ["test.product.yearly"])
     }
 
-    /// 원격 제목만 지정한 상품을 사용자 지정 제목 구성으로 인식하는지 확인
+    /// 원격 제목만 지정한 상품도 원격 표시 내용이 있는 것으로 인식하는지 확인
     @Test
-    func recognizesRemoteTitleAsConfiguredTitle() {
+    func recognizesRemoteContentWithEmptyDescription() {
         let context = PaywallProductContext(
             catalogProduct: PurchaseProduct(
-                productIdentifier: "test.product.monthly"
+                productIdentifier: "test.product.monthly",
+                titleResource: LocalizedStringResource(
+                    "test.product.monthly.title",
+                    defaultValue: "Monthly"
+                ),
+                descriptionResource: LocalizedStringResource(
+                    "test.product.monthly.description",
+                    defaultValue: "Renews monthly"
+                )
             ),
             storeProduct: nil,
             displayTitle: "Monthly",
             displayDescription: nil,
+            hasRemoteDisplayContent: true,
             availability: .unavailable,
             isSelected: false,
             isOwned: false,
@@ -102,7 +111,8 @@ struct PaywallProductVisibilityTests {
             purchaseResolutionState: nil
         )
 
-        #expect(context.hasConfiguredTitle)
+        #expect(context.hasRemoteDisplayContent)
+        #expect(context.displayDescription == nil)
     }
 
     /// 현재 선택 상품을 사용할 수 없으면 첫 사용 가능 상품을 선택하는지 확인

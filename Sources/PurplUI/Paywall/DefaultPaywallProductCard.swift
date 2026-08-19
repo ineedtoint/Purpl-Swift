@@ -109,7 +109,9 @@ public struct DefaultPaywallProductCard: View {
             Text(verbatim: displayDescription)
                 .font(.caption)
                 .foregroundStyle(.secondary)
-        } else if context.hasConfiguredTitle {
+        } else if context.hasRemoteDisplayContent {
+            EmptyView()
+        } else if context.catalogProduct.titleResource != nil {
             if let descriptionResource = context.catalogProduct.descriptionResource {
                 Text(descriptionResource)
                     .font(.caption)

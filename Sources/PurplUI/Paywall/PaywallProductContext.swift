@@ -49,10 +49,8 @@ public struct PaywallProductContext: Identifiable, Sendable {
     /// The optional display description resolved by the remote paywall.
     public let displayDescription: String?
 
-    /// 로컬 또는 원격 구성에서 상품 제목을 직접 지정했는지 여부
-    var hasConfiguredTitle: Bool {
-        displayTitle != nil || catalogProduct.titleResource != nil
-    }
+    /// 원격 페이월에 상품 표시 내용이 구성되어 있는지 여부
+    let hasRemoteDisplayContent: Bool
 
     // StoreKit 상품 사용 가능 상태
     /// The availability of the StoreKit product.
@@ -80,6 +78,7 @@ public struct PaywallProductContext: Identifiable, Sendable {
         storeProduct: Product?,
         displayTitle: String? = nil,
         displayDescription: String? = nil,
+        hasRemoteDisplayContent: Bool = false,
         availability: PaywallProductAvailability,
         isSelected: Bool,
         isOwned: Bool,
@@ -90,6 +89,7 @@ public struct PaywallProductContext: Identifiable, Sendable {
         self.storeProduct = storeProduct
         self.displayTitle = displayTitle
         self.displayDescription = displayDescription
+        self.hasRemoteDisplayContent = hasRemoteDisplayContent
         self.availability = availability
         self.isSelected = isSelected
         self.isOwned = isOwned
