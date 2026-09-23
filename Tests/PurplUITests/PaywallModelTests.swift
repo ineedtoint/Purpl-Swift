@@ -998,6 +998,160 @@ struct PaywallModelTests {
         )
     }
 
+    /// 상품 조건 변경에 맞춰 표시와 선택을 함께 전환하는지 확인
+    @Test
+    func filtersProductsAndReplacesExcludedSelection() throws {
+        let purchaseConfiguration = makePurchaseConfiguration()
+        let model = PaywallModel.preview(
+            purchaseConfiguration: purchaseConfiguration,
+            configuration: makePaywallConfiguration()
+        )
+        let yearlyProduct = try #require(purchaseConfiguration.product(for: "test.product.yearly"))
+
+        model.updateIncludedProductIdentifiers(["test.product.monthly"])
+        #expect(model.visibleCatalogProducts.map(\.id) == ["test.product.monthly"])
+        #expect(model.selectedCatalogProduct?.id == "test.product.monthly")
+
+        model.select(yearlyProduct)
+        #expect(model.selectedCatalogProduct?.id == "test.product.monthly")
+
+        model.updateIncludedProductIdentifiers(["test.product.yearly"])
+        #expect(model.visibleCatalogProducts.map(\.id) == ["test.product.yearly"])
+        #expect(model.selectedCatalogProduct?.id == "test.product.yearly")
+    }
+
+    /// 빈 조건에서 구매 대상을 해제하고 필터 제거 시 기본 상품을 복구하는지 확인
+    @Test
+    func clearsSelectionForEmptyFilterAndRestoresUnfilteredCatalog() async throws {
+        let model = PaywallModel.preview(
+            purchaseConfiguration: makePurchaseConfiguration(),
+            configuration: makePaywallConfiguration()
+        )
+
+        model.updateIncludedProductIdentifiers([])
+        #expect(model.visibleCatalogProducts.isEmpty)
+        #expect(model.selectedOptionIdentifier == nil)
+        #expect(model.selectedCatalogProduct == nil)
+        #expect(model.selectedStoreProduct == nil)
+        #expect(model.isPurchaseButtonDisabled)
+        #expect(try await model.purchaseSelectedProduct() == nil)
+
+        model.updateIncludedProductIdentifiers(nil)
+        #expect(model.visibleCatalogProducts.map(\.id) == ["test.product.monthly", "test.product.yearly"])
+        #expect(model.selectedOptionIdentifier == "test.product.yearly")
+    }
+
+    /// 표시 조건으로 기존 구매 권한과 보유 상품을 제거하지 않는지 확인
+    @Test
+    func preservesCustomerEntitlementsWhenProductsAreFiltered() {
+        let model = PaywallModel.preview(
+            purchaseConfiguration: makePurchaseConfiguration(),
+            configuration: makePaywallConfiguration(),
+            activeProductIdentifiers: ["test.product.yearly"],
+            activeEntitlementIdentifiers: ["access"]
+        )
+
+        model.updateIncludedProductIdentifiers([])
+        #expect(model.hasActiveEntitlement)
+        #expect(model.hasOwnedCatalogProduct)
+        #expect(model.activeProductIdentifiers == ["test.product.yearly"])
+        #expect(model.activeEntitlementIdentifiers == ["access"])
+    }
+
+    /// 상품 조건 변경 시 현재 선택이 포함되어 있으면 유지하는지 확인
+    @Test
+    func preservesIncludedSelectionAndCatalogOrder() throws {
+        let purchaseConfiguration = makePurchaseConfiguration()
+        let model = PaywallModel.preview(
+            purchaseConfiguration: purchaseConfiguration,
+            configuration: makePaywallConfiguration()
+        )
+        model.select(try #require(purchaseConfiguration.product(for: "test.product.monthly")))
+        model.updateIncludedProductIdentifiers(["test.product.yearly", "test.product.monthly"])
+        #expect(model.selectedOptionIdentifier == "test.product.monthly")
+        #expect(model.visibleCatalogProducts.map(\.id) == ["test.product.monthly", "test.product.yearly"])
+    }
+
+    /// 원격 구성 조회 후에도 상품 조건을 유지하고 재조회 없이 필터를 바꾸는지 확인
+    @Test
+    func preservesFilterAcrossRemoteConfigurationLoading() async {
+        let purchaseService = PaywallPurchaseServiceStub(
+            remotePaywallConfiguration: makeResolvedPaywallConfiguration(
+                autoRenewalNotice: "안내",
+                updatedAt: Date()
+            )
+        )
+        let model = makeRemotePaywallModel(purchaseService: purchaseService)
+        model.updateIncludedProductIdentifiers(["test.product.monthly"])
+        await model.prepare()
+        #expect(model.selectedCatalogProduct?.id == "test.product.monthly")
+        #expect(await purchaseService.productRequestCount() == 1)
+
+        model.updateIncludedProductIdentifiers([])
+        #expect(model.selectedOptionIdentifier == nil)
+        model.updateIncludedProductIdentifiers(["test.product.yearly"])
+        #expect(model.selectedCatalogProduct?.id == "test.product.yearly")
+        #expect(await purchaseService.productRequestCount() == 1)
+    }
+
+    /// 카탈로그에 없는 상품은 필터에 포함되어도 선택되지 않는지 확인
+    @Test
+    func rejectsProductsOutsideCatalog() {
+        let model = PaywallModel.preview(
+            purchaseConfiguration: makePurchaseConfiguration(),
+            configuration: makePaywallConfiguration()
+        )
+        model.updateIncludedProductIdentifiers(["retired.product"])
+        model.select(PurchaseProduct(productIdentifier: "retired.product"))
+        #expect(model.visibleCatalogProducts.isEmpty)
+        #expect(model.selectedOptionIdentifier == nil)
+        #expect(model.isPurchaseButtonDisabled)
+    }
+
+    /// 기본 카드와 사용자 정의 카드 모두 상품 조건을 받을 수 있는지 확인
+    @Test
+    func supportsProductPredicateWithBothCardStyles() {
+        let model = PaywallModel.preview(
+            purchaseConfiguration: makePurchaseConfiguration(),
+            configuration: makePaywallConfiguration()
+        )
+        _ = PaywallView(model: model, isIncluded: { $0.id == "test.product.monthly" }) {
+            Text(verbatim: "구매 안내")
+        }
+        _ = PaywallView(
+            model: model,
+            isIncluded: { $0.id == "test.product.yearly" },
+            marketingContent: { Text(verbatim: "구매 안내") },
+            productContent: { Text(verbatim: $0.catalogProduct.id) }
+        )
+    }
+
+    /// 판매 카탈로그에서 제외된 기존 상품도 복원 성공으로 안내하는지 확인
+    @Test
+    func restoresOwnedProductOutsideSalesCatalog() async {
+        let originalConfiguration = makePurchaseConfiguration()
+        let legacyProduct = makePurchaseProduct(productIdentifier: "test.legacy.yearly")
+        let purchaseConfiguration = PurchaseConfiguration(
+            entitlements: originalConfiguration.entitlements,
+            products: originalConfiguration.products + [legacyProduct]
+        )
+        let purchaseService = PaywallPurchaseServiceStub(
+            entitlementProductIdentifiers: [legacyProduct.productIdentifier]
+        )
+        let model = PaywallModel(
+            purchaseConfiguration: purchaseConfiguration,
+            configuration: makePaywallConfiguration(),
+            purchaseService: purchaseService
+        )
+
+        let didSynchronize = await model.restorePurchases()
+
+        #expect(didSynchronize == true)
+        #expect(model.restoreNotice == .succeeded)
+        #expect(!model.hasOwnedCatalogProduct)
+        #expect(!model.visibleCatalogProducts.contains { $0.id == legacyProduct.id })
+    }
+
     /// 테스트용 페이월 구성 생성
     /// - Parameters:
     ///   - defaultProductIdentifier: 기본 선택 구매 옵션 식별자

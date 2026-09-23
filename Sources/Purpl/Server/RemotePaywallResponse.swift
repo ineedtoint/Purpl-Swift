@@ -76,14 +76,12 @@ struct RemotePaywallResponse: Codable, Sendable {
                 )
             }
         )
-        let catalog = PurchaseCatalog(
-            identifier: catalog.identifier,
-            productIdentifiers: catalog.productIdentifiers
-        )
+        let resolvedProductIdentifiers: [String]
         let resolvedPurchaseConfiguration: PurchaseConfiguration
 
         switch entitlementMode {
         case .server:
+            resolvedProductIdentifiers = catalog.productIdentifiers
             resolvedPurchaseConfiguration = remotePurchaseConfiguration
         case .serverWithStoreKitFallback, .storeKit:
             guard let localPurchaseConfiguration else {
@@ -94,22 +92,38 @@ struct RemotePaywallResponse: Codable, Sendable {
                 localPurchaseConfiguration.productIdentifiers
             )
 
-            guard Set(catalog.productIdentifiers).isSubset(
-                of: localProductIdentifiers
-            ) else {
+            // 로컬에서 권한을 처리할 수 있는 상품만 원격 순서대로 유지한다.
+            resolvedProductIdentifiers = catalog.productIdentifiers.filter {
+                localProductIdentifiers.contains($0)
+            }
+
+            // 판매할 상품이 없으면 기존 캐시 또는 로컬 폴백 처리로 넘긴다.
+            guard !resolvedProductIdentifiers.isEmpty else {
                 throw PurchasesError.invalidServerResponse
             }
 
             resolvedPurchaseConfiguration = localPurchaseConfiguration
         }
 
+        let resolvedCatalog = PurchaseCatalog(
+            identifier: catalog.identifier,
+            productIdentifiers: resolvedProductIdentifiers
+        )
+        let defaultProductIdentifier = paywallConfiguration
+            .defaultProductIdentifier.flatMap { productIdentifier in
+                resolvedProductIdentifiers.contains(productIdentifier)
+                    ? productIdentifier : resolvedProductIdentifiers.first
+            }
+        let includedProductIdentifiers = Set(resolvedProductIdentifiers)
+
         return ResolvedPaywallConfiguration(
             paywallIdentifier: paywallConfiguration.identifier,
             purchaseConfiguration: resolvedPurchaseConfiguration,
-            catalog: catalog,
-            defaultProductIdentifier:
-                paywallConfiguration.defaultProductIdentifier,
-            productContents: localization.products.map { product in
+            catalog: resolvedCatalog,
+            defaultProductIdentifier: defaultProductIdentifier,
+            productContents: localization.products.filter { product in
+                includedProductIdentifiers.contains(product.productIdentifier)
+            }.map { product in
                 ResolvedPaywallProductContent(
                     productIdentifier: product.productIdentifier,
                     title: product.title,

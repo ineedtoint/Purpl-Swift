@@ -17,6 +17,9 @@ struct PaywallPurchaseBar: View {
     /// 페이월 상태 모델
     let model: PaywallModel
 
+    /// 현재 화면의 상품 조건과 구매 대상 일치 여부
+    var isProductSelectionReady = true
+
     /// 구매 처리 결과 액션
     let purchaseResultAction: @MainActor (PurchaseResult) -> Void
 
@@ -48,11 +51,15 @@ struct PaywallPurchaseBar: View {
         }
         .buttonStyle(.borderedProminent)
         .tint(style.tintColor)
-        .disabled(model.isPurchaseButtonDisabled)
+        .disabled(model.isPurchaseButtonDisabled || !isProductSelectionReady)
     }
 
     /// 선택된 상품 구매
     private func purchaseSelectedProduct() async {
+        guard isProductSelectionReady else {
+            return
+        }
+
         do {
             guard let purchaseResult = try await model
                 .purchaseSelectedProduct() else {

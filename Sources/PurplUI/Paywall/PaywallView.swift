@@ -15,6 +15,9 @@ public struct PaywallView<MarketingContent: View, ProductContent: View>: View {
     /// 현재 SwiftUI 로케일
     @Environment(\.locale) private var locale
 
+    /// 표시할 카탈로그 상품 조건, 생략하면 전체 상품 표시
+    private let isIncluded: ((PurchaseProduct) -> Bool)?
+
     /// 기본 페이월 스타일
     private let style: PaywallStyle
 
@@ -45,6 +48,7 @@ public struct PaywallView<MarketingContent: View, ProductContent: View>: View {
     ///
     /// - Parameters:
     ///   - configuration: The paywall configuration.
+    ///   - isIncluded: 표시할 상품 조건. 생략하면 카탈로그의 전체 상품 표시.
     ///   - style: The style of the paywall and bottom purchase area.
     ///   - appAccountToken: An optional UUID that links the signed-in user's purchase to an app account.
     ///   - purchaseResultAction: An action that handles the StoreKit purchase result.
@@ -54,6 +58,7 @@ public struct PaywallView<MarketingContent: View, ProductContent: View>: View {
     @MainActor
     public init(
         configuration: PaywallConfiguration,
+        isIncluded: ((PurchaseProduct) -> Bool)? = nil,
         style: PaywallStyle = PaywallStyle(),
         appAccountToken: UUID? = nil,
         purchaseResultAction: @escaping @MainActor (PurchaseResult) -> Void = { _ in },
@@ -65,6 +70,7 @@ public struct PaywallView<MarketingContent: View, ProductContent: View>: View {
     ) {
         self.init(
             model: PaywallModel(configuration: configuration),
+            isIncluded: isIncluded,
             style: style,
             appAccountToken: appAccountToken,
             purchaseResultAction: purchaseResultAction,
@@ -82,6 +88,7 @@ public struct PaywallView<MarketingContent: View, ProductContent: View>: View {
     /// - Parameters:
     ///   - paywallIdentifier: The paywall configuration identifier defined in Purpl.
     ///   - fallbackConfiguration: An optional local configuration shown when the remote configuration is unavailable.
+    ///   - isIncluded: 표시할 상품 조건. 생략하면 카탈로그의 전체 상품 표시.
     ///   - style: The style of the paywall and bottom purchase area.
     ///   - appAccountToken: An optional UUID that links the signed-in user's purchase to an app account.
     ///   - purchaseResultAction: An action that handles the StoreKit purchase result.
@@ -92,6 +99,7 @@ public struct PaywallView<MarketingContent: View, ProductContent: View>: View {
     public init(
         paywallIdentifier: String,
         fallbackConfiguration: PaywallConfiguration? = nil,
+        isIncluded: ((PurchaseProduct) -> Bool)? = nil,
         style: PaywallStyle = PaywallStyle(),
         appAccountToken: UUID? = nil,
         purchaseResultAction: @escaping @MainActor (PurchaseResult) -> Void = { _ in },
@@ -106,6 +114,7 @@ public struct PaywallView<MarketingContent: View, ProductContent: View>: View {
                 paywallIdentifier: paywallIdentifier,
                 fallbackConfiguration: fallbackConfiguration
             ),
+            isIncluded: isIncluded,
             style: style,
             appAccountToken: appAccountToken,
             purchaseResultAction: purchaseResultAction,
@@ -122,6 +131,7 @@ public struct PaywallView<MarketingContent: View, ProductContent: View>: View {
     ///
     /// - Parameters:
     ///   - model: The model that owns the paywall configuration and state.
+    ///   - isIncluded: 표시할 상품 조건. 생략하면 카탈로그의 전체 상품 표시.
     ///   - style: The style of the paywall and bottom purchase area.
     ///   - appAccountToken: An optional UUID that links the signed-in user's purchase to an app account.
     ///   - purchaseResultAction: An action that handles the StoreKit purchase result.
@@ -131,6 +141,7 @@ public struct PaywallView<MarketingContent: View, ProductContent: View>: View {
     @MainActor
     public init(
         model: PaywallModel,
+        isIncluded: ((PurchaseProduct) -> Bool)? = nil,
         style: PaywallStyle = PaywallStyle(),
         appAccountToken: UUID? = nil,
         purchaseResultAction: @escaping @MainActor (PurchaseResult) -> Void = { _ in },
@@ -140,6 +151,7 @@ public struct PaywallView<MarketingContent: View, ProductContent: View>: View {
             PaywallProductContext
         ) -> ProductContent
     ) {
+        self.isIncluded = isIncluded
         self.style = style
         self.appAccountToken = appAccountToken
         self.purchaseResultAction = purchaseResultAction
@@ -169,6 +181,7 @@ public struct PaywallView<MarketingContent: View, ProductContent: View>: View {
             PaywallPurchaseBar(
                 style: style,
                 model: model,
+                isProductSelectionReady: isProductSelectionReady,
                 purchaseResultAction: purchaseResultAction,
                 purchaseFailureAction: purchaseFailureAction
             )
@@ -178,6 +191,10 @@ public struct PaywallView<MarketingContent: View, ProductContent: View>: View {
                 applicationAccountIdentifier: appAccountToken,
                 localeIdentifier: locale.identifier
             )
+        }
+        .onChange(of: includedProductIdentifiers, initial: true) { _, productIdentifiers in
+            // 표시 조건 변경을 상품 선택과 구매 대상에 함께 반영
+            model.updateIncludedProductIdentifiers(productIdentifiers)
         }
         .onDisappear {
             model.stopObservingCustomerInfoUpdates()
@@ -243,10 +260,26 @@ public struct PaywallView<MarketingContent: View, ProductContent: View>: View {
         }
     }
 
+    /// 현재 표시 조건에 해당하는 카탈로그 상품 식별자
+    private var includedProductIdentifiers: Set<String>? {
+        guard let isIncluded else {
+            return nil
+        }
+
+        return Set(model.configuration.catalog.products(in: model.purchaseConfiguration)
+            .filter(isIncluded)
+            .map(\.productIdentifier))
+    }
+
+    /// 표시 조건과 구매 대상의 동기화 완료 여부
+    private var isProductSelectionReady: Bool {
+        model.includedProductIdentifiers == includedProductIdentifiers
+    }
+
     /// 구매 상품 선택 영역
     private var productOptionsSection: some View {
         VStack(spacing: 16) {
-            ForEach(model.visibleCatalogProducts) { catalogProduct in
+            ForEach(model.visibleCatalogProducts.filter { isIncluded?($0) ?? true }) { catalogProduct in
                 catalogProductButton(for: catalogProduct)
             }
         }
@@ -265,7 +298,7 @@ public struct PaywallView<MarketingContent: View, ProductContent: View>: View {
             productContent(model.context(for: catalogProduct))
         }
         .buttonStyle(.plain)
-        .disabled(model.isProcessing)
+        .disabled(model.isProcessing || !isProductSelectionReady)
     }
 
     /// 자동 갱신 안내 영역
@@ -297,6 +330,7 @@ public extension PaywallView where ProductContent == DefaultPaywallProductCard {
     ///
     /// - Parameters:
     ///   - configuration: The paywall configuration.
+    ///   - isIncluded: 표시할 상품 조건. 생략하면 카탈로그의 전체 상품 표시.
     ///   - style: The style of the paywall and product cards.
     ///   - appAccountToken: An optional UUID that links the signed-in user's purchase to an app account.
     ///   - purchaseResultAction: An action that handles the StoreKit purchase result.
@@ -305,6 +339,7 @@ public extension PaywallView where ProductContent == DefaultPaywallProductCard {
     @MainActor
     init(
         configuration: PaywallConfiguration,
+        isIncluded: ((PurchaseProduct) -> Bool)? = nil,
         style: PaywallStyle = PaywallStyle(),
         appAccountToken: UUID? = nil,
         purchaseResultAction: @escaping @MainActor (PurchaseResult) -> Void = { _ in },
@@ -313,6 +348,7 @@ public extension PaywallView where ProductContent == DefaultPaywallProductCard {
     ) {
         self.init(
             configuration: configuration,
+            isIncluded: isIncluded,
             style: style,
             appAccountToken: appAccountToken,
             purchaseResultAction: purchaseResultAction,
@@ -335,6 +371,7 @@ public extension PaywallView where ProductContent == DefaultPaywallProductCard {
     /// - Parameters:
     ///   - paywallIdentifier: The paywall configuration identifier defined in Purpl.
     ///   - fallbackConfiguration: An optional local configuration shown when the remote configuration is unavailable.
+    ///   - isIncluded: 표시할 상품 조건. 생략하면 카탈로그의 전체 상품 표시.
     ///   - style: The style of the paywall and product cards.
     ///   - appAccountToken: An optional UUID that links the signed-in user's purchase to an app account.
     ///   - purchaseResultAction: An action that handles the StoreKit purchase result.
@@ -344,6 +381,7 @@ public extension PaywallView where ProductContent == DefaultPaywallProductCard {
     init(
         paywallIdentifier: String,
         fallbackConfiguration: PaywallConfiguration? = nil,
+        isIncluded: ((PurchaseProduct) -> Bool)? = nil,
         style: PaywallStyle = PaywallStyle(),
         appAccountToken: UUID? = nil,
         purchaseResultAction: @escaping @MainActor (PurchaseResult) -> Void = { _ in },
@@ -353,6 +391,7 @@ public extension PaywallView where ProductContent == DefaultPaywallProductCard {
         self.init(
             paywallIdentifier: paywallIdentifier,
             fallbackConfiguration: fallbackConfiguration,
+            isIncluded: isIncluded,
             style: style,
             appAccountToken: appAccountToken,
             purchaseResultAction: purchaseResultAction,
@@ -371,6 +410,7 @@ public extension PaywallView where ProductContent == DefaultPaywallProductCard {
     /// Creates a paywall with the specified state model and default Purpl product cards.
     /// - Parameters:
     ///   - model: The model that owns the paywall configuration and state.
+    ///   - isIncluded: 표시할 상품 조건. 생략하면 카탈로그의 전체 상품 표시.
     ///   - style: The style of the paywall and product cards.
     ///   - appAccountToken: An optional UUID that links the signed-in user's purchase to an app account.
     ///   - purchaseResultAction: An action that handles the StoreKit purchase result.
@@ -379,6 +419,7 @@ public extension PaywallView where ProductContent == DefaultPaywallProductCard {
     @MainActor
     init(
         model: PaywallModel,
+        isIncluded: ((PurchaseProduct) -> Bool)? = nil,
         style: PaywallStyle = PaywallStyle(),
         appAccountToken: UUID? = nil,
         purchaseResultAction: @escaping @MainActor (PurchaseResult) -> Void = { _ in },
@@ -387,6 +428,7 @@ public extension PaywallView where ProductContent == DefaultPaywallProductCard {
     ) {
         self.init(
             model: model,
+            isIncluded: isIncluded,
             style: style,
             appAccountToken: appAccountToken,
             purchaseResultAction: purchaseResultAction,

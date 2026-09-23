@@ -130,11 +130,28 @@ PaywallView(
 
 The paywall fallback only controls presentation. Use `serverWithStoreKitFallback` as the entitlement mode when entitlement checks should also fall back to StoreKit after a server failure.
 
+With `storeKit` or `serverWithStoreKitFallback`, remote catalogs include only products registered in the local purchase configuration, preserving remote order and display content. If the default product is excluded, the first remaining product becomes the default. If no products remain, the remote configuration is rejected and the existing cache or paywall fallback remains in use when available. Invalid response identifiers and references still reject the entire response. The `server` mode continues to use the remote purchase configuration without this local product filter. These presentation rules do not change server entitlement handling.
+
 ## API reference
 
 Browse the [Purpl Swift API Reference](https://swift.purpl.sh/) online. Purpl and PurplUI include DocC catalogs, so you can also choose **Product > Build Documentation** in Xcode to browse the complete API reference, platform availability, and deprecation guidance generated from the SDK source.
 
 ## Presentation ownership
+
+Use `isIncluded` to show a subset of the same catalog. The predicate receives a `PurchaseProduct`; your app decides how products are grouped. Omit it to show all catalog products under the existing availability policy.
+
+```swift
+PaywallView(
+    paywallIdentifier: "standard",
+    isIncluded: { product in
+        selectedProductIdentifiers.contains(product.productIdentifier)
+    }
+) {
+    MyMarketingContent()
+}
+```
+
+Changing the included products updates the product selection and purchase target without recreating the paywall or reloading StoreKit products. An empty result clears selection and disables purchase. When available, a subscription with the same billing period preserves the previous choice across subsets. Product filtering does not change customer entitlements or restore behavior.
 
 `PaywallView` owns product presentation and purchase actions. Your app owns `NavigationStack`, tabs, toolbars, and close buttons so it can compose multiple paywalls within the same screen.
 

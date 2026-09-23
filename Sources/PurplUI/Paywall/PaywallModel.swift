@@ -153,6 +153,20 @@ public final class PaywallModel {
         configuration.catalog.products(in: purchaseConfiguration)
     }
 
+    /// 화면의 상품 조건으로 제한한 식별자, nil이면 전체 카탈로그 사용
+    private(set) var includedProductIdentifiers: Set<String>?
+
+    /// 화면의 상품 조건에 해당하는 구매 상품
+    private var includedProducts: [PurchaseProduct] {
+        guard let includedProductIdentifiers else {
+            return configuredProducts
+        }
+
+        return configuredProducts.filter { product in
+            includedProductIdentifiers.contains(product.productIdentifier)
+        }
+    }
+
     // MARK: - 상품 상태
 
     // StoreKit 상품 목록
@@ -224,7 +238,7 @@ public final class PaywallModel {
     // 선택된 구매 상품
     /// The selected purchase product.
     public var selectedCatalogProduct: PurchaseProduct? {
-        purchaseConfiguration.product(for: selectedOptionIdentifier)
+        includedProducts.first { $0.id == selectedOptionIdentifier }
     }
 
     // 선택된 StoreKit 상품
@@ -253,7 +267,7 @@ public final class PaywallModel {
     /// The purchase products currently visible on the paywall.
     public var visibleCatalogProducts: [PurchaseProduct] {
         PaywallProductVisibilityPolicy.visibleProducts(
-            configuredProducts: configuredProducts,
+            configuredProducts: includedProducts,
             availableProductIdentifiers: availableProductIdentifiers,
             isLoadingProducts: isLoadingProducts,
             hasCompletedProductLoading: hasCompletedProductLoading,
@@ -752,24 +766,10 @@ public final class PaywallModel {
     ) -> Bool {
         let previousProductIdentifiers =
             configuration.catalog.productIdentifiers
-        let previousSelectedOptionIdentifier = selectedOptionIdentifier
-        let configuredProducts = paywallConfiguration.catalog.products(
-            in: purchaseConfiguration
-        )
-
+        let previousSubscriptionPeriod = selectedStoreProduct?.subscription?.subscriptionPeriod
         self.purchaseConfiguration = purchaseConfiguration
         configuration = paywallConfiguration
-
-        if let previousSelectedOptionIdentifier,
-           configuredProducts.contains(where: { product in
-               product.id == previousSelectedOptionIdentifier
-           }) {
-            selectedOptionIdentifier = previousSelectedOptionIdentifier
-        } else {
-            selectedOptionIdentifier = configuredProducts.first { product in
-                product.id == paywallConfiguration.defaultProductIdentifier
-            }?.id ?? configuredProducts.first?.id
-        }
+        updateProductSelection(preferredSubscriptionPeriod: previousSubscriptionPeriod)
 
         return previousProductIdentifiers
             != paywallConfiguration.catalog.productIdentifiers
@@ -963,9 +963,9 @@ public final class PaywallModel {
         }
 
         products = loadedProducts
-        selectAvailableProductIfNeeded()
         isLoadingProducts = false
         hasCompletedProductLoading = true
+        updateProductSelection()
         productLoadingTask = nil
     }
 
@@ -975,7 +975,8 @@ public final class PaywallModel {
     /// Selects a purchase product.
     /// - Parameter catalogProduct: The purchase product to select.
     public func select(_ catalogProduct: PurchaseProduct) {
-        guard !isProcessing else {
+        guard !isProcessing,
+              includedProducts.contains(where: { $0.id == catalogProduct.id }) else {
             return
         }
 
@@ -1159,7 +1160,11 @@ public final class PaywallModel {
             }
 
             await refreshStoreKitEntitlementProducts()
-            restoreNotice = hasOwnedCatalogProduct ? .succeeded : .notFound
+            // 판매 목록에서 제외된 기존 상품도 복원 결과에 포함
+            let hasRestoredProduct = purchaseConfiguration.productIdentifiers.contains { productIdentifier in
+                activeProductIdentifiers.contains(productIdentifier)
+            }
+            restoreNotice = hasRestoredProduct ? .succeeded : .notFound
             return true
         } catch {
             guard requestedAccountRevision == applicationAccountRevision else {
@@ -1372,13 +1377,42 @@ public final class PaywallModel {
         )
     }
 
-    /// 사용 가능한 상품이 있으면 현재 선택 상태 보정
-    private func selectAvailableProductIfNeeded() {
-        selectedOptionIdentifier = PaywallProductVisibilityPolicy.selectedOptionIdentifier(
-            currentOptionIdentifier: selectedOptionIdentifier,
-            configuredProducts: configuredProducts,
-            availableProductIdentifiers: availableProductIdentifiers
-        )
+    /// 화면의 상품 조건 변경과 구매 대상 보정
+    func updateIncludedProductIdentifiers(_ productIdentifiers: Set<String>?) {
+        guard includedProductIdentifiers != productIdentifiers else {
+            return
+        }
+
+        let previousSubscriptionPeriod = selectedStoreProduct?.subscription?.subscriptionPeriod
+        includedProductIdentifiers = productIdentifiers
+        updateProductSelection(preferredSubscriptionPeriod: previousSubscriptionPeriod)
+    }
+
+    /// 포함된 상품의 구매 가능 여부에 따른 선택 유지 또는 기본 상품 선택
+    private func updateProductSelection(
+        preferredSubscriptionPeriod: Product.SubscriptionPeriod? = nil
+    ) {
+        let availableProducts = includedProducts.filter { product in
+            availableProductIdentifiers.contains(product.productIdentifier)
+        }
+        let candidates = availableProducts.isEmpty ? includedProducts : availableProducts
+        if candidates.contains(where: { $0.id == selectedOptionIdentifier }) {
+            return
+        }
+
+        // 구독 상품 사이를 전환하면 가능한 경우 기존 결제 주기 유지
+        if let preferredSubscriptionPeriod,
+           let matchingProduct = candidates.first(where: { catalogProduct in
+               product(for: catalogProduct)?.subscription?.subscriptionPeriod
+                   == preferredSubscriptionPeriod
+           }) {
+            selectedOptionIdentifier = matchingProduct.id
+            return
+        }
+
+        selectedOptionIdentifier = candidates.first {
+            $0.id == configuration.defaultProductIdentifier
+        }?.id ?? candidates.first?.id
     }
 
     /// StoreKit에서 불러온 상품 식별자 목록
