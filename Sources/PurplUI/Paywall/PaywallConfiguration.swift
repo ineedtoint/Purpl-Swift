@@ -51,12 +51,7 @@ public struct PaywallConfiguration: Sendable {
     /// A Boolean value that indicates whether to show purchase options unavailable from StoreKit.
     public let showsUnavailablePurchaseOptions: Bool
 
-    // 자동 갱신 안내 문구
-    /// The localized auto-renewal notice resource.
-    public let autoRenewalNoticeResource: LocalizedStringResource?
-
-    // 서버에서 현재 언어에 맞게 해결한 자동 갱신 안내 문구
-    /// The auto-renewal notice resolved by the server for the current language.
+    /// 현지화가 완료된 자동 갱신 안내 문구
     public let autoRenewalNoticeText: String?
 
     // 서버에서 현재 언어에 맞게 해결한 상품 표시 내용
@@ -93,8 +88,9 @@ public struct PaywallConfiguration: Sendable {
         self.catalog = catalog
         self.defaultProductIdentifier = defaultProductIdentifier
         self.showsUnavailablePurchaseOptions = showsUnavailablePurchaseOptions
-        self.autoRenewalNoticeResource = autoRenewalNoticeResource
-        self.autoRenewalNoticeText = autoRenewalNoticeText
+        self.autoRenewalNoticeText = autoRenewalNoticeResource.map { resource in
+            String(localized: resource)
+        } ?? autoRenewalNoticeText
         self.productDisplayContents = productDisplayContents
         self.privacyPolicyURL = privacyPolicyURL
         self.termsOfServiceURL = termsOfServiceURL

@@ -361,11 +361,15 @@ struct PaywallModelTests {
         #expect(model.configurationError == nil)
     }
 
-    /// 원격 캐시가 없으면 로컬 폴백을 먼저 표시한 뒤 서버 최신 구성을 반영하는지 확인
-    @Test
-    func displaysFallbackBeforeRemotePaywallRefresh() async throws {
+    /// 리소스 폴백을 먼저 표시한 뒤 서버의 최신 안내 문자열로 교체하는지 확인
+    @Test(arguments: [false, true])
+    func displaysFallbackBeforeRemotePaywallRefresh(includesResolvedText: Bool) async throws {
         let fallbackConfiguration = makePaywallConfiguration(
-            autoRenewalNoticeText: "로컬 폴백 안내"
+            autoRenewalNoticeResource: LocalizedStringResource(
+                "test.paywall.autoRenewalNotice",
+                defaultValue: "로컬 폴백 안내"
+            ),
+            autoRenewalNoticeText: includesResolvedText ? "우선하지 않는 문자열 안내" : nil
         )
         let refreshedConfiguration = makeResolvedPaywallConfiguration(
             autoRenewalNotice: "최신 안내",
@@ -1158,6 +1162,7 @@ struct PaywallModelTests {
     /// - Returns: 월간과 연간 상품을 포함한 페이월 구성
     private func makePaywallConfiguration(
         defaultProductIdentifier: String? = "test.product.yearly",
+        autoRenewalNoticeResource: LocalizedStringResource? = nil,
         autoRenewalNoticeText: String? = nil
     ) -> PaywallConfiguration {
         let purchaseConfiguration = makePurchaseConfiguration()
@@ -1168,7 +1173,7 @@ struct PaywallModelTests {
                 products: purchaseConfiguration.products
             ),
             defaultProductIdentifier: defaultProductIdentifier,
-            autoRenewalNoticeResource: nil,
+            autoRenewalNoticeResource: autoRenewalNoticeResource,
             autoRenewalNoticeText: autoRenewalNoticeText,
             privacyPolicyURL: nil,
             termsOfServiceURL: nil

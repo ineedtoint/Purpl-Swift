@@ -719,7 +719,6 @@ public final class PaywallModel {
             catalog: resolvedConfiguration.catalog,
             defaultProductIdentifier:
                 resolvedConfiguration.defaultProductIdentifier,
-            autoRenewalNoticeResource: nil,
             autoRenewalNoticeText:
                 resolvedConfiguration.autoRenewalNotice,
             productDisplayContents:
@@ -785,7 +784,6 @@ public final class PaywallModel {
                 productIdentifiers: []
             ),
             defaultProductIdentifier: nil,
-            autoRenewalNoticeResource: nil,
             privacyPolicyURL: nil,
             termsOfServiceURL: nil
         )

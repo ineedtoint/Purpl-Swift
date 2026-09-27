@@ -169,8 +169,7 @@ public struct PaywallView<MarketingContent: View, ProductContent: View>: View {
                 marketingContent
                 purchaseConfigurationSection
 
-                if model.configuration.autoRenewalNoticeResource != nil
-                    || model.configuration.autoRenewalNoticeText != nil {
+                if model.configuration.autoRenewalNoticeText != nil {
                     purchasePolicySection
                 }
             }
@@ -304,15 +303,7 @@ public struct PaywallView<MarketingContent: View, ProductContent: View>: View {
     /// 자동 갱신 안내 영역
     @ViewBuilder
     private var purchasePolicySection: some View {
-        if let autoRenewalNoticeResource =
-            model.configuration.autoRenewalNoticeResource {
-            Text(autoRenewalNoticeResource)
-                .font(.caption2)
-                .foregroundStyle(Color.secondary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 16)
-        } else if let autoRenewalNoticeText =
-                    model.configuration.autoRenewalNoticeText {
+        if let autoRenewalNoticeText = model.configuration.autoRenewalNoticeText {
             Text(verbatim: autoRenewalNoticeText)
                 .font(.caption2)
                 .foregroundStyle(Color.secondary)
