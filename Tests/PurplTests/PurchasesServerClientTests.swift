@@ -51,7 +51,8 @@ struct PurchasesServerClientTests {
                     "description": "프리미엄 기능"
                   }
                 ],
-                "autoRenewalNotice": "구독은 자동으로 갱신됩니다."
+                "purchaseNotice": "구독은 자동으로 갱신됩니다.",
+                "autoRenewalNotice": "이전 필드는 사용하지 않음"
               },
               "policy": {
                 "privacyPolicyURL": "https://example.com/privacy",
@@ -96,6 +97,7 @@ struct PurchasesServerClientTests {
             queryItems?.first(where: { $0.name == "localeIdentifier" })?.value
                 == "ko-KR"
         )
+        #expect(paywall.localization.purchaseNotice == "구독은 자동으로 갱신됩니다.")
         #expect(paywall.paywallConfiguration.identifier == "standard")
         #expect(paywall.catalog.productIdentifiers == [
             "test.subscription.monthly",

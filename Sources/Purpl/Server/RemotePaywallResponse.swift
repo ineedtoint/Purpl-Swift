@@ -35,7 +35,7 @@ struct RemotePaywallResponse: Codable, Sendable {
         localization: RemotePaywallLocalization = RemotePaywallLocalization(
             localeIdentifier: "en-US",
             products: [],
-            autoRenewalNotice: nil
+            purchaseNotice: nil
         ),
         policy: RemotePaywallPolicy = RemotePaywallPolicy(
             privacyPolicyURL: nil,
@@ -130,7 +130,7 @@ struct RemotePaywallResponse: Codable, Sendable {
                     description: product.description
                 )
             },
-            autoRenewalNotice: localization.autoRenewalNotice,
+            purchaseNotice: localization.purchaseNotice,
             privacyPolicyURL: try policy.privacyPolicyURL.map { value in
                 try value.validatedURL()
             },
@@ -197,8 +197,8 @@ struct RemotePaywallLocalization: Codable, Sendable {
     /// 상품별 표시 내용
     let products: [RemotePaywallProductContent]
 
-    /// Apple 자동 갱신 안내 문구
-    let autoRenewalNotice: String?
+    /// Apple 결제 안내 문구
+    let purchaseNotice: String?
 }
 
 /// 서버와 캐시가 공유하는 해결된 상품 표시 내용

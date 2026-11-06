@@ -293,11 +293,11 @@ struct PaywallModelTests {
     func refreshesDisplayedRemotePaywallConfiguration() async throws {
         let purchaseConfiguration = makePurchaseConfiguration()
         let cachedConfiguration = makeResolvedPaywallConfiguration(
-            autoRenewalNotice: "캐시 안내",
+            purchaseNotice: "캐시 안내",
             updatedAt: Date(timeIntervalSince1970: 1)
         )
         let refreshedConfiguration = makeResolvedPaywallConfiguration(
-            autoRenewalNotice: "최신 안내",
+            purchaseNotice: "최신 안내",
             updatedAt: Date(timeIntervalSince1970: 2)
         )
         let remoteConfigurationGate = PaywallRemoteConfigurationGate()
@@ -320,7 +320,7 @@ struct PaywallModelTests {
 
         await model.prepare()
 
-        #expect(model.configuration.autoRenewalNoticeText == "캐시 안내")
+        #expect(model.configuration.purchaseNoticeText == "캐시 안내")
 
         let monthlyProduct = try #require(
             purchaseConfiguration.product(for: "test.product.monthly")
@@ -329,13 +329,13 @@ struct PaywallModelTests {
         await remoteConfigurationGate.open()
 
         for _ in 0..<100 {
-            if model.configuration.autoRenewalNoticeText == "최신 안내" {
+            if model.configuration.purchaseNoticeText == "최신 안내" {
                 break
             }
             try await Task.sleep(for: .milliseconds(10))
         }
 
-        #expect(model.configuration.autoRenewalNoticeText == "최신 안내")
+        #expect(model.configuration.purchaseNoticeText == "최신 안내")
         #expect(model.selectedOptionIdentifier == "test.product.monthly")
     }
 
@@ -343,7 +343,7 @@ struct PaywallModelTests {
     @Test
     func keepsCachedRemotePaywallConfigurationWhenRefreshFails() async {
         let cachedConfiguration = makeResolvedPaywallConfiguration(
-            autoRenewalNotice: "오프라인 캐시 안내",
+            purchaseNotice: "오프라인 캐시 안내",
             updatedAt: Date(timeIntervalSince1970: 1)
         )
         let purchaseService = PaywallPurchaseServiceStub(
@@ -355,7 +355,7 @@ struct PaywallModelTests {
         await Task.yield()
 
         #expect(
-            model.configuration.autoRenewalNoticeText
+            model.configuration.purchaseNoticeText
                 == "오프라인 캐시 안내"
         )
         #expect(model.configurationError == nil)
@@ -365,14 +365,14 @@ struct PaywallModelTests {
     @Test(arguments: [false, true])
     func displaysFallbackBeforeRemotePaywallRefresh(includesResolvedText: Bool) async throws {
         let fallbackConfiguration = makePaywallConfiguration(
-            autoRenewalNoticeResource: LocalizedStringResource(
-                "test.paywall.autoRenewalNotice",
+            purchaseNoticeResource: LocalizedStringResource(
+                "test.paywall.purchaseNotice",
                 defaultValue: "로컬 폴백 안내"
             ),
-            autoRenewalNoticeText: includesResolvedText ? "우선하지 않는 문자열 안내" : nil
+            purchaseNoticeText: includesResolvedText ? "우선하지 않는 문자열 안내" : nil
         )
         let refreshedConfiguration = makeResolvedPaywallConfiguration(
-            autoRenewalNotice: "최신 안내",
+            purchaseNotice: "최신 안내",
             updatedAt: Date(timeIntervalSince1970: 2)
         )
         let remoteConfigurationGate = PaywallRemoteConfigurationGate()
@@ -388,27 +388,64 @@ struct PaywallModelTests {
         await model.prepare()
 
         #expect(
-            model.configuration.autoRenewalNoticeText == "로컬 폴백 안내"
+            model.configuration.purchaseNoticeText == "로컬 폴백 안내"
         )
         #expect(model.configurationError == nil)
 
         await remoteConfigurationGate.open()
 
         for _ in 0..<100 {
-            if model.configuration.autoRenewalNoticeText == "최신 안내" {
+            if model.configuration.purchaseNoticeText == "최신 안내" {
                 break
             }
             try await Task.sleep(for: .milliseconds(10))
         }
 
-        #expect(model.configuration.autoRenewalNoticeText == "최신 안내")
+        #expect(model.configuration.purchaseNoticeText == "최신 안내")
+    }
+
+    /// 서버 안내가 없으면 로컬 폴백 안내를 제거하는지 확인
+    @Test(arguments: [nil, ""] as [String?])
+    func clearsFallbackNoticeWhenRemoteNoticeIsEmpty(purchaseNotice: String?) async throws {
+        let fallbackConfiguration = makePaywallConfiguration(
+            purchaseNoticeResource: LocalizedStringResource(
+                "test.paywall.purchaseNotice",
+                defaultValue: "로컬 폴백 안내"
+            )
+        )
+        let remoteConfigurationGate = PaywallRemoteConfigurationGate()
+        let purchaseService = PaywallPurchaseServiceStub(
+            remotePaywallConfiguration: makeResolvedPaywallConfiguration(
+                purchaseNotice: purchaseNotice,
+                updatedAt: Date(timeIntervalSince1970: 2)
+            ),
+            remoteConfigurationGate: remoteConfigurationGate
+        )
+        let model = makeRemotePaywallModel(
+            purchaseService: purchaseService,
+            fallbackConfiguration: fallbackConfiguration
+        )
+
+        await model.prepare()
+        #expect(model.configuration.purchaseNoticeText == "로컬 폴백 안내")
+        await remoteConfigurationGate.open()
+
+        for _ in 0..<100 {
+            if model.configuration.purchaseNoticeText == purchaseNotice {
+                break
+            }
+            try await Task.sleep(for: .milliseconds(10))
+        }
+
+        #expect(model.configuration.purchaseNoticeText == purchaseNotice)
+        #expect(model.configurationError == nil)
     }
 
     /// 원격 캐시와 서버 구성을 사용할 수 없어도 로컬 폴백을 유지하는지 확인
     @Test
     func keepsFallbackWhenRemotePaywallRefreshFails() async {
         let fallbackConfiguration = makePaywallConfiguration(
-            autoRenewalNoticeText: "오프라인 폴백 안내"
+            purchaseNoticeText: "오프라인 폴백 안내"
         )
         let purchaseService = PaywallPurchaseServiceStub()
         let model = makeRemotePaywallModel(
@@ -420,7 +457,7 @@ struct PaywallModelTests {
         await Task.yield()
 
         #expect(
-            model.configuration.autoRenewalNoticeText
+            model.configuration.purchaseNoticeText
                 == "오프라인 폴백 안내"
         )
         #expect(model.configurationError == nil)
@@ -430,11 +467,11 @@ struct PaywallModelTests {
     @Test
     func defersRemotePaywallRefreshWhileRestoring() async throws {
         let cachedConfiguration = makeResolvedPaywallConfiguration(
-            autoRenewalNotice: "캐시 안내",
+            purchaseNotice: "캐시 안내",
             updatedAt: Date(timeIntervalSince1970: 1)
         )
         let refreshedConfiguration = makeResolvedPaywallConfiguration(
-            autoRenewalNotice: "최신 안내",
+            purchaseNotice: "최신 안내",
             updatedAt: Date(timeIntervalSince1970: 2)
         )
         let remoteConfigurationGate = PaywallRemoteConfigurationGate()
@@ -457,11 +494,11 @@ struct PaywallModelTests {
         await remoteConfigurationGate.open()
         try await Task.sleep(for: .milliseconds(10))
 
-        #expect(model.configuration.autoRenewalNoticeText == "캐시 안내")
+        #expect(model.configuration.purchaseNoticeText == "캐시 안내")
 
         _ = await restoreTask.value
 
-        #expect(model.configuration.autoRenewalNoticeText == "최신 안내")
+        #expect(model.configuration.purchaseNoticeText == "최신 안내")
     }
 
     /// 서버 고객 정보와 무관하게 StoreKit 상태만으로 구매 가능 여부를 결정하는지 확인
@@ -1081,7 +1118,7 @@ struct PaywallModelTests {
     func preservesFilterAcrossRemoteConfigurationLoading() async {
         let purchaseService = PaywallPurchaseServiceStub(
             remotePaywallConfiguration: makeResolvedPaywallConfiguration(
-                autoRenewalNotice: "안내",
+                purchaseNotice: "안내",
                 updatedAt: Date()
             )
         )
@@ -1162,8 +1199,8 @@ struct PaywallModelTests {
     /// - Returns: 월간과 연간 상품을 포함한 페이월 구성
     private func makePaywallConfiguration(
         defaultProductIdentifier: String? = "test.product.yearly",
-        autoRenewalNoticeResource: LocalizedStringResource? = nil,
-        autoRenewalNoticeText: String? = nil
+        purchaseNoticeResource: LocalizedStringResource? = nil,
+        purchaseNoticeText: String? = nil
     ) -> PaywallConfiguration {
         let purchaseConfiguration = makePurchaseConfiguration()
 
@@ -1173,8 +1210,8 @@ struct PaywallModelTests {
                 products: purchaseConfiguration.products
             ),
             defaultProductIdentifier: defaultProductIdentifier,
-            autoRenewalNoticeResource: autoRenewalNoticeResource,
-            autoRenewalNoticeText: autoRenewalNoticeText,
+            purchaseNoticeResource: purchaseNoticeResource,
+            purchaseNoticeText: purchaseNoticeText,
             privacyPolicyURL: nil,
             termsOfServiceURL: nil
         )
@@ -1202,11 +1239,11 @@ struct PaywallModelTests {
 
     /// 테스트용 해석된 원격 페이월 구성 생성
     /// - Parameters:
-    ///   - autoRenewalNotice: 자동 갱신 안내 문구
+    ///   - purchaseNotice: 결제 안내 문구
     ///   - updatedAt: 원격 구성 수정 시각
     /// - Returns: 월간과 연간 상품을 포함한 원격 페이월 구성
     private func makeResolvedPaywallConfiguration(
-        autoRenewalNotice: String,
+        purchaseNotice: String?,
         updatedAt: Date
     ) -> ResolvedPaywallConfiguration {
         let purchaseConfiguration = makePurchaseConfiguration()
@@ -1219,7 +1256,7 @@ struct PaywallModelTests {
                 products: purchaseConfiguration.products
             ),
             defaultProductIdentifier: "test.product.yearly",
-            autoRenewalNotice: autoRenewalNotice,
+            purchaseNotice: purchaseNotice,
             updatedAt: updatedAt
         )
     }

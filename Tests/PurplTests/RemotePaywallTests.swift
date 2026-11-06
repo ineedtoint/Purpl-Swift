@@ -11,6 +11,20 @@ import Testing
 
 /// 원격 페이월 응답 해석 테스트
 struct RemotePaywallResponseTests {
+    /// 결제 안내 누락과 null 응답에 기본 안내나 이전 필드를 적용하지 않는지 확인
+    @Test(arguments: [false, true])
+    func decodesMissingPurchaseNotice(includesNull: Bool) throws {
+        let nullField = includesNull ? #", "purchaseNotice": null"# : ""
+        let response = Data(
+            """
+            {"localeIdentifier":"ko","products":[],"autoRenewalNotice":"이전 안내"\(nullField)}
+            """.utf8
+        )
+        let localization = try JSONDecoder().decode(RemotePaywallLocalization.self, from: response)
+
+        #expect(localization.purchaseNotice == nil)
+    }
+
     /// 서버 권한 모드에서 원격 구매 구성과 카탈로그를 함께 사용하는지 확인
     @Test
     func serverModeUsesRemoteCatalog() throws {
@@ -35,7 +49,7 @@ struct RemotePaywallResponseTests {
         )
         #expect(configuration.defaultProductIdentifier == "test.subscription.yearly")
         #expect(configuration.productContents.first?.title == "연간")
-        #expect(configuration.autoRenewalNotice == "자동 갱신 안내")
+        #expect(configuration.purchaseNotice == "자동 갱신 안내")
         #expect(configuration.privacyPolicyURL?.absoluteString == "https://example.com/privacy")
         #expect(configuration.termsOfServiceURL.absoluteString == "https://example.com/terms")
     }
@@ -60,7 +74,7 @@ struct RemotePaywallResponseTests {
         ])
         #expect(configuration.productContents.first?.title == "월간")
         #expect(configuration.productContents.first?.description == nil)
-        #expect(configuration.autoRenewalNotice == "자동 갱신 안내")
+        #expect(configuration.purchaseNotice == "자동 갱신 안내")
         #expect(configuration.privacyPolicyURL?.absoluteString == "https://example.com/privacy")
         #expect(configuration.termsOfServiceURL.absoluteString == "https://example.com/terms")
     }
@@ -314,7 +328,7 @@ struct RemotePaywallResponseTests {
                         description: nil
                     )
                 ],
-                autoRenewalNotice: "자동 갱신 안내"
+                purchaseNotice: "자동 갱신 안내"
             ),
             policy: RemotePaywallPolicy(
                 privacyPolicyURL: "https://example.com/privacy",

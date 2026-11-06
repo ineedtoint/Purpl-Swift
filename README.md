@@ -91,6 +91,8 @@ let customerInfo = try await Purchases.shared.customerInfo()
 let hasPlusAccess = customerInfo.isEntitlementActive("plus")
 ```
 
+Set `purchaseNoticeResource` or `purchaseNoticeText` on `PaywallConfiguration` to show a purchase notice. The localized resource takes precedence when both are supplied. There is no SDK default text: a nonblank notice appears above the purchase button in the fixed bottom area for any product type, followed by the restore and policy links. Remote `purchaseNotice` replaces the local notice, including when it is empty or absent.
+
 ## Purpl managed configuration
 
 To manage customer entitlements and paywall catalogs with the Purpl service, configure server mode and pass the paywall identifier defined on the web.
@@ -107,7 +109,7 @@ PaywallView(paywallIdentifier: "standard") {
 }
 ```
 
-Remote paywall configuration is resolved using the app's bundle identifier, paywall identifier, and current locale. Purpl supplies localized product content, renewal notices, and policy links, while StoreKit still handles product loading, pricing, availability, and purchases.
+Remote paywall configuration is resolved using the app's bundle identifier, paywall identifier, and current locale. Purpl supplies localized product content, purchase notices, and policy links, while StoreKit still handles product loading, pricing, availability, and purchases.
 
 To keep a paywall available before the first remote response or during a network failure, provide the app's local purchase configuration and paywall fallback. A cached remote configuration remains the first choice. When no cache exists, the fallback is presented immediately and replaced after a successful remote refresh.
 

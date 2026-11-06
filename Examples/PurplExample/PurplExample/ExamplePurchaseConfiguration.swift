@@ -63,7 +63,7 @@ enum ExamplePaywallConfiguration {
         catalog: standardCatalog,
         defaultProductIdentifier:
             ExamplePurchaseConfiguration.yearlyProduct.productIdentifier,
-        autoRenewalNoticeResource: LocalizedStringResource(
+        purchaseNoticeResource: LocalizedStringResource(
             "Subscriptions renew automatically unless canceled at least 24 hours before the end of the current period."
         )
     )

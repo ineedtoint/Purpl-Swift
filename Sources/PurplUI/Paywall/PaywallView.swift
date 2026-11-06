@@ -168,10 +168,6 @@ public struct PaywallView<MarketingContent: View, ProductContent: View>: View {
             VStack(spacing: 32) {
                 marketingContent
                 purchaseConfigurationSection
-
-                if model.configuration.autoRenewalNoticeText != nil {
-                    purchasePolicySection
-                }
             }
             .padding(.bottom, 32)
         }
@@ -298,18 +294,6 @@ public struct PaywallView<MarketingContent: View, ProductContent: View>: View {
         }
         .buttonStyle(.plain)
         .disabled(model.isProcessing || !isProductSelectionReady)
-    }
-
-    /// 자동 갱신 안내 영역
-    @ViewBuilder
-    private var purchasePolicySection: some View {
-        if let autoRenewalNoticeText = model.configuration.autoRenewalNoticeText {
-            Text(verbatim: autoRenewalNoticeText)
-                .font(.caption2)
-                .foregroundStyle(Color.secondary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 16)
-        }
     }
 }
 

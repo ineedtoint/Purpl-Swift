@@ -719,8 +719,8 @@ public final class PaywallModel {
             catalog: resolvedConfiguration.catalog,
             defaultProductIdentifier:
                 resolvedConfiguration.defaultProductIdentifier,
-            autoRenewalNoticeText:
-                resolvedConfiguration.autoRenewalNotice,
+            purchaseNoticeText:
+                resolvedConfiguration.purchaseNotice,
             productDisplayContents:
                 resolvedConfiguration.productContents.map { content in
                     PaywallProductDisplayContent(

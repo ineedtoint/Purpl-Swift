@@ -30,9 +30,8 @@ public struct ResolvedPaywallConfiguration: Sendable {
     /// Product display content resolved for the requested language.
     public let productContents: [ResolvedPaywallProductContent]
 
-    // 요청 언어에 맞게 해결한 자동 갱신 안내 문구
-    /// The auto-renewal notice resolved for the requested language.
-    public let autoRenewalNotice: String?
+    /// 요청 언어에 맞게 해결한 결제 안내 문구
+    public let purchaseNotice: String?
 
     // 개인정보 처리방침 주소
     /// The privacy policy URL.
@@ -53,7 +52,7 @@ public struct ResolvedPaywallConfiguration: Sendable {
         catalog: PurchaseCatalog,
         defaultProductIdentifier: String?,
         productContents: [ResolvedPaywallProductContent] = [],
-        autoRenewalNotice: String? = nil,
+        purchaseNotice: String? = nil,
         privacyPolicyURL: URL? = nil,
         termsOfServiceURL: URL = URL(
             string: "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/"
@@ -65,7 +64,7 @@ public struct ResolvedPaywallConfiguration: Sendable {
         self.catalog = catalog
         self.defaultProductIdentifier = defaultProductIdentifier
         self.productContents = productContents
-        self.autoRenewalNotice = autoRenewalNotice
+        self.purchaseNotice = purchaseNotice
         self.privacyPolicyURL = privacyPolicyURL
         self.termsOfServiceURL = termsOfServiceURL
         self.updatedAt = updatedAt

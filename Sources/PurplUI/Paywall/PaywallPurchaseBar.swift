@@ -29,11 +29,26 @@ struct PaywallPurchaseBar: View {
     /// 페이월 하단 구매 영역 본문
     var body: some View {
         VStack(spacing: 16) {
+            purchaseNoticeSection
             purchaseButton
             purchaseFooterActions
         }
         .padding(.horizontal, 8)
         .padding(8)
+    }
+
+    /// 상품 종류와 관계없이 표시하는 결제 안내
+    @ViewBuilder
+    private var purchaseNoticeSection: some View {
+        if let purchaseNoticeText = model.configuration.purchaseNoticeText,
+           !purchaseNoticeText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            Text(verbatim: purchaseNoticeText)
+                .font(.caption2)
+                .foregroundStyle(Color.secondary)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: .infinity)
+                .padding(.top, 8)
+        }
     }
 
     /// 통합 구매 버튼
@@ -118,7 +133,7 @@ struct PaywallPurchaseBar: View {
                 }
             }
         }
-        .font(.caption2)
+        .font(.caption)
         .foregroundStyle(.secondary)
     }
 
