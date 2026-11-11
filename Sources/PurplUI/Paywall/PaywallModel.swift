@@ -1152,11 +1152,14 @@ public final class PaywallModel {
         }
 
         do {
-            try await purchaseService.synchronizePurchases()
+            let restoredCustomerInfo = try await purchaseService.restorePurchases(
+                applicationAccountIdentifier: applicationAccountIdentifier
+            )
             guard requestedAccountRevision == applicationAccountRevision else {
                 return nil
             }
 
+            applyCustomerInfo(restoredCustomerInfo)
             await refreshStoreKitEntitlementProducts()
             // 판매 목록에서 제외된 기존 상품도 복원 결과에 포함
             let hasRestoredProduct = purchaseConfiguration.productIdentifiers.contains { productIdentifier in

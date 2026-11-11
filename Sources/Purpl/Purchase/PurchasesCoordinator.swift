@@ -31,6 +31,9 @@ actor PurchasesCoordinator {
     /// 거래 식별자별 진행 중 처리 작업
     private var transactionProcessingTasks = [UInt64: Task<Void, Error>]()
 
+    private var applicationAccountIdentifier: UUID?
+    private var applicationAccountRevision = 0
+
     /// 자동 동기화 시작 여부
     private var started = false
 
@@ -130,7 +133,7 @@ actor PurchasesCoordinator {
         let verifiedTransactions = await storeService.currentVerifiedEntitlementTransactions()
         return try await resolveCustomerInfo(
             verifiedTransactions: verifiedTransactions,
-            applicationAccountIdentifier: applicationAccountIdentifier?.uuidString.lowercased()
+            applicationAccountIdentifier: (applicationAccountIdentifier ?? self.applicationAccountIdentifier)?.uuidString.lowercased()
         )
     }
 
@@ -149,14 +152,14 @@ actor PurchasesCoordinator {
 
         let storePurchaseResult = try await storeService.purchase(
             product,
-            appAccountToken: appAccountToken
+            appAccountToken: appAccountToken ?? applicationAccountIdentifier
         )
 
         switch storePurchaseResult {
         case .completed(let transaction):
             try await processTransaction(
                 transaction,
-                applicationAccountIdentifier: appAccountToken?.uuidString.lowercased()
+                applicationAccountIdentifier: (appAccountToken ?? applicationAccountIdentifier)?.uuidString.lowercased()
             )
 
             return .completed
@@ -167,14 +170,59 @@ actor PurchasesCoordinator {
         }
     }
 
+    /// 로그인 계정 연결과 현재 권한 재전송
+    func logIn(applicationAccountIdentifier: UUID) async throws -> CustomerInfo {
+        if self.applicationAccountIdentifier != applicationAccountIdentifier {
+            self.applicationAccountIdentifier = applicationAccountIdentifier
+            applicationAccountRevision += 1
+        }
+        return try await synchronizeEntitlements(applicationAccountIdentifier: applicationAccountIdentifier).customerInfo
+    }
+
+    /// 이후 구매와 권한 조회에서 사용할 앱 계정 연결 해제
+    func logOut() {
+        applicationAccountIdentifier = nil
+        applicationAccountRevision += 1
+    }
+
+    /// 현재 권한 검증과 웹훅 재전송, 같은 요청 식별자로 전달 상태 재확인
+    func synchronizeEntitlements(
+        applicationAccountIdentifier: UUID? = nil,
+        requestIdentifier: UUID = UUID()
+    ) async throws -> EntitlementSynchronizationResult {
+        let accountIdentifier = applicationAccountIdentifier ?? self.applicationAccountIdentifier
+        let accountRevision = applicationAccountRevision
+        if entitlementMode == .storeKit {
+            let customerInfo = try await customerInfo(applicationAccountIdentifier: accountIdentifier)
+            return EntitlementSynchronizationResult(customerInfo: customerInfo,
+                republication: EntitlementRepublication(requestIdentifier: requestIdentifier, status: .notRequired, deliveryCount: 0))
+        }
+        // 복구 요청은 서버 실패를 기기 폴백 성공으로 바꾸지 않는다.
+        let appTransaction = try await storeService.currentVerifiedAppTransaction()
+        let transactions = await storeService.currentVerifiedEntitlementTransactions()
+        let result = try await serverClient.republishEntitlements(with: SignedPurchasesPayload(
+            signedAppTransaction: appTransaction.signedAppTransaction,
+            signedTransactions: Array(Set(transactions.map(\.signedTransaction))).sorted(),
+            applicationAccountIdentifier: accountIdentifier?.uuidString.lowercased()
+        ), requestIdentifier: requestIdentifier)
+        try Task.checkCancellation()
+        guard accountRevision == applicationAccountRevision else { throw CancellationError() }
+        let customerInfo = CustomerInfo(source: result.customerInfo.source,
+            appTransactionIdentifier: appTransaction.appTransactionIdentifier,
+            customerIdentifier: result.customerInfo.customerIdentifier,
+            entitlements: result.customerInfo.entitlements)
+        customerInfoPublisher.publish(customerInfo)
+        return EntitlementSynchronizationResult(customerInfo: customerInfo, republication: result.republication)
+    }
+
     /// App Store 구매 내역 복원과 최신 고객 정보 확인
     func restorePurchases(
         applicationAccountIdentifier: UUID? = nil
     ) async throws -> CustomerInfo {
         try await storeService.synchronizePurchases()
-        return try await customerInfo(
+        return try await synchronizeEntitlements(
             applicationAccountIdentifier: applicationAccountIdentifier
-        )
+        ).customerInfo
     }
 
     /// App Store 구매 내역만 동기화

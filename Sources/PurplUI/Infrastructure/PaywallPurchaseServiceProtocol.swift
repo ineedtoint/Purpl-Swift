@@ -63,11 +63,20 @@ protocol PaywallPurchaseServiceProtocol: Sendable {
         appAccountToken: UUID?
     ) async throws -> PurchaseResult
 
+    /// 구매 내역 복원과 현재 권한 웹훅 재전송
+    func restorePurchases(applicationAccountIdentifier: UUID?) async throws -> CustomerInfo
+
     /// App Store 구매 내역 동기화
     func synchronizePurchases() async throws
 }
 
 extension PaywallPurchaseServiceProtocol {
+    /// 테스트 또는 기존 구매 경계의 복원 기본 동작
+    func restorePurchases(applicationAccountIdentifier: UUID?) async throws -> CustomerInfo {
+        try await synchronizePurchases()
+        return try await customerInfo(applicationAccountIdentifier: applicationAccountIdentifier)
+    }
+
     /// 캐시를 제공하지 않는 테스트 경계의 기본 동작
     func cachedPaywallConfiguration(
         for paywallIdentifier: String,

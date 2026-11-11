@@ -172,6 +172,30 @@ struct PurchasesServerClientTests {
         )
     }
 
+    /// 재전송 전용 경로와 멱등 식별자 및 전송 대기 상태 해석 확인
+    @Test
+    func republishesEntitlementsThroughSeparateEndpoint() async throws {
+        let requestIdentifier = UUID()
+        let data = Data("""
+        {"customerIdentifier":"customer-identifier","entitlements":[],"republication":{
+          "requestIdentifier":"\(requestIdentifier.uuidString)","status":"queued","deliveryCount":2
+        }}
+        """.utf8)
+        let transport = PurchasesNetworkTransportSpy(response: PurchasesNetworkResponse(data: data, statusCode: 200))
+        let client = PurchasesServerClient(configuration: PurchasesConfiguration(), networkTransport: transport)
+        let result = try await client.republishEntitlements(with: SignedPurchasesPayload(
+            signedAppTransaction: "verified-app", signedTransactions: ["verified-purchase"],
+            applicationAccountIdentifier: "flow-user"), requestIdentifier: requestIdentifier)
+        let request = try #require(await transport.receivedRequest())
+        #expect(request.url?.path == "/v1/customers/entitlements/republish")
+        let body = try #require(JSONSerialization.jsonObject(with: request.httpBody!) as? [String: Any])
+        #expect(body["provider"] as? String == "apple")
+        #expect(body["requestIdentifier"] as? String == requestIdentifier.uuidString.lowercased())
+        #expect(body["applicationAccountIdentifier"] as? String == "flow-user")
+        #expect(result.republication.status == .queued)
+        #expect(result.republication.deliveryCount == 2)
+    }
+
     /// 서버 실패 응답의 상태 코드와 오류 코드 전달 확인
     @Test
     func unsuccessfulServerResponse() async throws {

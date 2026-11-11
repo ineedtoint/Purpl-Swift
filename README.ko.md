@@ -141,3 +141,17 @@ PaywallView(
 ## 라이선스
 
 Purpl Swift는 MIT 라이선스로 제공됩니다. 자세한 내용은 [LICENSE](LICENSE)를 참고하세요.
+
+## 로그인·구매 복원과 권한 복구
+
+앱 로그인을 마친 뒤 `logIn`으로 계정을 연결합니다. 로그인·구매 복원·명시적 `synchronizeEntitlements`는 현재 권한이 같아도 Purpl에 웹훅 재전송을 요청합니다. 일반 `customerInfo()` 조회는 재전송을 요청하지 않으며, 실제 권한 변경 이벤트는 기존처럼 전달됩니다.
+
+```swift
+let customerInfo = try await Purchases.shared.logIn(applicationAccountIdentifier: accountIdentifier)
+let restoredCustomerInfo = try await Purchases.shared.restorePurchases()
+let recovery = try await Purchases.shared.synchronizeEntitlements()
+let deliveryStatus = recovery.republication.status
+await Purchases.shared.logOut()
+```
+
+`queued`는 전송 접수이고 수신 완료가 아닙니다. 같은 `requestIdentifier`로 재호출하면 중복 생성 없이 전달 상태를 확인할 수 있습니다. 웹훅 실패는 Purpl의 기존 전송 worker에서 재시도합니다. 명시적 복구의 서버 오류는 기기 폴백 성공으로 숨기지 않습니다. 서버를 사용하지 않는 모드에서는 외부 웹훅을 보내지 않습니다.

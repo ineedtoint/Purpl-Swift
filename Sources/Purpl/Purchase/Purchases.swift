@@ -280,6 +280,29 @@ public final class Purchases: Sendable {
         )
     }
 
+    /// 로그인한 앱 계정 연결과 현재 권한 웹훅 재전송
+    /// 웹훅 전달은 비동기이며 이 메서드의 성공이 연동 서버의 반영 완료를 뜻하지 않는다.
+    public func logIn(applicationAccountIdentifier: UUID) async throws -> CustomerInfo {
+        try await coordinator.logIn(applicationAccountIdentifier: applicationAccountIdentifier)
+    }
+
+    /// 이후 구매와 조회에 사용할 앱 계정 연결 해제
+    public func logOut() async {
+        await coordinator.logOut()
+    }
+
+    /// 현재 권한 재전송과 전달 상태 확인
+    /// 같은 requestIdentifier로 재시도하면 새 웹훅을 만들지 않고 기존 전달 상태를 반환한다.
+    public func synchronizeEntitlements(
+        applicationAccountIdentifier: UUID? = nil,
+        requestIdentifier: UUID = UUID()
+    ) async throws -> EntitlementSynchronizationResult {
+        try await coordinator.synchronizeEntitlements(
+            applicationAccountIdentifier: applicationAccountIdentifier,
+            requestIdentifier: requestIdentifier
+        )
+    }
+
     // App Store 구매 내역 복원과 최신 고객 정보 확인
     /// Restores App Store purchases and returns the latest customer information.
     /// - Parameter applicationAccountIdentifier: An optional UUID that links the current app user as an additional customer identity.

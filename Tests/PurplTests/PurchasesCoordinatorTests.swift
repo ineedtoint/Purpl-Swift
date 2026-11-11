@@ -302,6 +302,41 @@ struct PurchasesCoordinatorTests {
         #expect(await serverClient.requestCount == 0)
     }
 
+    /// 일반 조회와 달리 로그인 및 명시적 복구만 재전송하는지 확인
+    @Test
+    func onlyExplicitRecoveryRepublishesEntitlements() async throws {
+        let server = PurchasesServerClientSpy(customerInfo: makeCustomerInfo())
+        let coordinator = PurchasesCoordinator(serverClient: server,
+            storeService: StoreKitServiceStub(verifiedTransactions: [makeVerifiedTransaction()]))
+        _ = try await coordinator.customerInfo(applicationAccountIdentifier: nil)
+        #expect(await server.republicationCount == 0)
+        let accountIdentifier = UUID()
+        _ = try await coordinator.logIn(applicationAccountIdentifier: accountIdentifier)
+        #expect(await server.republicationCount == 1)
+        _ = try await coordinator.customerInfo(applicationAccountIdentifier: nil)
+        #expect(await server.republicationCount == 1)
+        #expect(await server.receivedPayload()?.applicationAccountIdentifier == accountIdentifier.uuidString.lowercased())
+        let requestIdentifier = UUID()
+        let result = try await coordinator.synchronizeEntitlements(requestIdentifier: requestIdentifier)
+        #expect(result.republication.requestIdentifier == requestIdentifier)
+        #expect(result.republication.status == .queued)
+        #expect(await server.republicationCount == 2)
+        await coordinator.logOut()
+        _ = try await coordinator.customerInfo(applicationAccountIdentifier: nil)
+        #expect(await server.receivedPayload()?.applicationAccountIdentifier == nil)
+    }
+
+    /// 복구 전송 실패가 기기 폴백 성공으로 바뀌지 않는지 확인
+    @Test
+    func recoveryRequiresServerAcceptance() async throws {
+        let coordinator = PurchasesCoordinator(serverClient: NetworkFailurePurchasesServerClient(),
+            storeService: StoreKitServiceStub(verifiedTransactions: [makeVerifiedTransaction()]),
+            entitlementMode: .serverWithStoreKitFallback)
+        await #expect(throws: (any Error).self) {
+            _ = try await coordinator.synchronizeEntitlements()
+        }
+    }
+
     /// 구매 복원 후 현재 거래를 서버에 다시 전달하는지 확인
     @Test
     func restorePurchasesSynchronizesCurrentTransactions() async throws {
@@ -325,6 +360,7 @@ struct PurchasesCoordinatorTests {
 
         #expect(customerInfo == expectedCustomerInfo)
         #expect(await storeService.synchronizedPurchases)
+        #expect(await serverClient.republicationCount == 1)
         #expect(receivedPayload.signedTransactions == ["signed-transaction"])
         #expect(
             receivedPayload.applicationAccountIdentifier ==
@@ -658,6 +694,16 @@ private struct NetworkFailurePurchasesServerClient: PurchasesServerClientProtoco
 private actor PurchasesServerClientSpy: PurchasesServerClientProtocol {
     /// 준비된 고객 정보
     private let customerInfo: CustomerInfo
+
+    private(set) var republicationCount = 0
+
+    /// 현재 권한 재전송 API 호출 기록
+    func republishEntitlements(with payload: SignedPurchasesPayload, requestIdentifier: UUID) async throws -> EntitlementSynchronizationResult {
+        republicationCount += 1
+        synchronizedPayload = payload
+        return EntitlementSynchronizationResult(customerInfo: customerInfo,
+            republication: EntitlementRepublication(requestIdentifier: requestIdentifier, status: .queued, deliveryCount: 1))
+    }
 
     /// 마지막 동기화 요청
     private var synchronizedPayload: SignedPurchasesPayload?

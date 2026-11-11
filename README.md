@@ -160,3 +160,17 @@ Changing the included products updates the product selection and purchase target
 ## License
 
 Purpl Swift is available under the MIT license. See [LICENSE](LICENSE) for details.
+
+## Sign-in, restoration, and entitlement recovery
+
+After authenticating your app user, call `logIn` to link the account. Sign-in, restoration, and explicit `synchronizeEntitlements` request current entitlement webhooks even when unchanged. Ordinary `customerInfo()` does not force republication; actual entitlement changes still produce normal webhooks.
+
+```swift
+let customerInfo = try await Purchases.shared.logIn(applicationAccountIdentifier: accountIdentifier)
+let restoredCustomerInfo = try await Purchases.shared.restorePurchases()
+let recovery = try await Purchases.shared.synchronizeEntitlements()
+let deliveryStatus = recovery.republication.status
+await Purchases.shared.logOut()
+```
+
+`queued` means accepted for delivery, not received by your server. Reuse a `requestIdentifier` to check status without generating duplicates. Purpl retries webhook delivery failures. Explicit recovery does not hide server errors behind local entitlement fallback. Local-only modes do not send webhooks.

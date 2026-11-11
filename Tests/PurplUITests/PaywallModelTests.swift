@@ -565,7 +565,7 @@ struct PaywallModelTests {
 
         #expect(didSynchronize == true)
         #expect(model.restoreNotice == .succeeded)
-        #expect(model.customerInfoState == .idle)
+        #expect(model.customerInfoState == .loaded)
         #expect(model.activeProductIdentifiers == ["test.product.yearly"])
         #expect(!model.isRestoring)
     }
@@ -585,7 +585,7 @@ struct PaywallModelTests {
 
         #expect(didSynchronize == true)
         #expect(model.restoreNotice == .notFound)
-        #expect(model.customerInfoState == .idle)
+        #expect(model.customerInfoState == .loaded)
         #expect(!model.isRestoring)
     }
 
@@ -895,7 +895,7 @@ struct PaywallModelTests {
         let restoredCustomerInfo = await restoreTask.value
 
         #expect(restoredCustomerInfo == nil)
-        #expect(await purchaseService.customerInfoRequestCount() == 2)
+        #expect(await purchaseService.customerInfoRequestCount() == 3)
         #expect(model.customerInfoState == .loaded)
         #expect(model.hasActiveEntitlement)
     }

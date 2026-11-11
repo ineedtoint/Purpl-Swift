@@ -12,6 +12,9 @@ protocol PurchasesServerClientProtocol: Sendable {
     /// 검증된 StoreKit 정보로 현재 고객 동기화
     func synchronizeCustomer(with payload: SignedPurchasesPayload) async throws -> CustomerInfo
 
+    /// 검증된 StoreKit 정보로 현재 권한 웹훅 재전송
+    func republishEntitlements(with payload: SignedPurchasesPayload, requestIdentifier: UUID) async throws -> EntitlementSynchronizationResult
+
     /// 공개 Bundle ID로 원격 페이월 조회
     func paywall(
         paywallIdentifier: String,
@@ -22,6 +25,11 @@ protocol PurchasesServerClientProtocol: Sendable {
 }
 
 extension PurchasesServerClientProtocol {
+    /// 재전송을 구현하지 않은 서버 경계의 명시적인 실패
+    func republishEntitlements(with payload: SignedPurchasesPayload, requestIdentifier: UUID) async throws -> EntitlementSynchronizationResult {
+        throw PurchasesError.invalidServerResponse
+    }
+
     /// 원격 페이월을 사용하지 않는 테스트 경계의 기본 동작
     func paywall(
         paywallIdentifier: String,
@@ -78,6 +86,29 @@ struct PurchasesServerClient: PurchasesServerClientProtocol {
 
         do {
             return try Self.makeResponseDecoder().decode(CustomerInfo.self, from: response.data)
+        } catch {
+            throw PurchasesError.invalidServerResponse
+        }
+    }
+
+    /// 별도 복구 API로 현재 권한 웹훅 재전송 접수 또는 상태 재확인
+    func republishEntitlements(with payload: SignedPurchasesPayload, requestIdentifier: UUID) async throws -> EntitlementSynchronizationResult {
+        var request = URLRequest(url: serverBaseURL.appending(path: "v1/customers/entitlements/republish"))
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONEncoder().encode(AppleEntitlementRepublicationRequest(
+            provider: "apple", requestIdentifier: requestIdentifier.uuidString.lowercased(),
+            signedAppTransaction: payload.signedAppTransaction,
+            signedTransactions: payload.signedTransactions,
+            applicationAccountIdentifier: payload.applicationAccountIdentifier
+        ))
+        let response = try await networkTransport.send(request)
+        guard (200..<300).contains(response.statusCode) else {
+            let errorResponse = try? JSONDecoder().decode(PurchasesServerErrorResponse.self, from: response.data)
+            throw PurchasesError.unsuccessfulServerResponse(statusCode: response.statusCode, errorCode: errorResponse?.error)
+        }
+        do {
+            return try Self.makeResponseDecoder().decode(EntitlementSynchronizationResult.self, from: response.data)
         } catch {
             throw PurchasesError.invalidServerResponse
         }
@@ -188,4 +219,18 @@ private struct AppleCustomerSynchronizationRequest: Encodable {
 private struct PurchasesServerErrorResponse: Decodable {
     /// 서버 오류 코드
     let error: String
+}
+
+/// StoreKit 증빙과 멱등 식별자를 포함한 권한 재전송 요청
+private struct AppleEntitlementRepublicationRequest: Encodable {
+    /// 스토어 공급자
+    let provider: String
+    /// 복구 요청 식별자
+    let requestIdentifier: String
+    /// 검증할 앱 거래
+    let signedAppTransaction: String
+    /// 검증할 현재 거래 목록
+    let signedTransactions: [String]
+    /// 연결할 앱 계정 식별자
+    let applicationAccountIdentifier: String?
 }
