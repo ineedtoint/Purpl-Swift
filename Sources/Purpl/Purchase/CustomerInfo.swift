@@ -23,12 +23,12 @@ public enum StoreEnvironment: String, Decodable, Hashable, Sendable {
 
 /// 개별 권한이 발생한 경로
 public enum EntitlementOrigin: String, Decodable, Sendable {
-    case appStore, googlePlay, purpl, unknown
+    case appStore, googlePlay, grant, unknown
 
-    /// 이전 응답과 향후 추가될 발급처 해석
+    /// 서버가 반환한 권한 출처 해석
     public init(from decoder: Decoder) throws {
         let value = try decoder.singleValueContainer().decode(String.self)
-        self = value == "manualGrant" ? .purpl : Self(rawValue: value) ?? .unknown
+        self = Self(rawValue: value) ?? .unknown
     }
 }
 
@@ -110,7 +110,7 @@ public struct CustomerEntitlement: Decodable, Equatable, Sendable {
     /// The date when the entitlement was last verified.
     public let lastVerifiedAt: Date
 
-    /// 이전 서버 응답의 App Store 구매 출처를 포함한 권한 해석
+    /// 서버 고객 권한 해석
     public init(from decoder: Decoder) throws {
         let fields = try decoder.container(keyedBy: CodingKeys.self)
         self.init(
@@ -124,7 +124,7 @@ public struct CustomerEntitlement: Decodable, Equatable, Sendable {
             expiresAt: try fields.decodeIfPresent(Date.self, forKey: .expiresAt),
             revokedAt: try fields.decodeIfPresent(Date.self, forKey: .revokedAt),
             lastVerifiedAt: try fields.decode(Date.self, forKey: .lastVerifiedAt),
-            origin: try fields.decodeIfPresent(EntitlementOrigin.self, forKey: .origin) ?? .appStore
+            origin: try fields.decodeIfPresent(EntitlementOrigin.self, forKey: .origin) ?? .unknown
         )
     }
 
@@ -181,7 +181,7 @@ public struct CustomerInfo: Decodable, Equatable, Sendable {
         let now = Date()
         return Set(entitlements.lazy.filter { entitlement in
             guard entitlement.active else { return false }
-            guard entitlement.origin == .purpl, let expiresAt = entitlement.expiresAt else { return true }
+            guard entitlement.origin == .grant, let expiresAt = entitlement.expiresAt else { return true }
             return expiresAt > now
         }.map(\.identifier))
     }

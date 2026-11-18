@@ -12,12 +12,12 @@ import Testing
 
 /// Purpl 내부 코디네이터 테스트
 struct PurchasesCoordinatorTests {
-    /// 기존 부여 및 새 발급처의 호환 해석
+    /// 권한 출처와 알 수 없는 값 해석
     @Test
     func entitlementOriginDecodesCompatibleValues() throws {
         let decoder = JSONDecoder()
         for (raw, expected) in [("appStore", EntitlementOrigin.appStore), ("googlePlay", .googlePlay),
-                                ("purpl", .purpl), ("manualGrant", .purpl), ("futureIssuer", .unknown)] {
+                                ("grant", .grant), ("unknown", .unknown), ("futureIssuer", .unknown)] {
             #expect(try decoder.decode(EntitlementOrigin.self, from: JSONEncoder().encode(raw)) == expected)
         }
     }
@@ -32,11 +32,11 @@ struct PurchasesCoordinatorTests {
             storeService: StoreKitServiceStub(verifiedTransactions: []), customerInfoPublisher: publisher)
         let grant = CustomerEntitlement(identifier: "pro", displayName: "Pro", environment: .production,
             status: .active, active: true, startsAt: nil, expiresAt: nil, revokedAt: nil,
-            lastVerifiedAt: Date(), origin: .purpl)
+            lastVerifiedAt: Date(), origin: .grant)
         await server.setAccountGrants([grant], for: account)
         let information = try await coordinator.logIn(applicationAccountIdentifier: account, email: "review@example.com")
         #expect(information.isEntitlementActive("pro"))
-        #expect(information.entitlements.first?.origin == .purpl)
+        #expect(information.entitlements.first?.origin == .grant)
         #expect(await server.receivedEmail == "review@example.com")
         #expect(await server.receivedPayload()?.signedTransactions.isEmpty == true)
 
