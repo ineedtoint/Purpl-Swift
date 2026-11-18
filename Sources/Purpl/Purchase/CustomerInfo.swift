@@ -23,7 +23,13 @@ public enum StoreEnvironment: String, Decodable, Hashable, Sendable {
 
 /// 개별 권한이 발생한 경로
 public enum EntitlementOrigin: String, Decodable, Sendable {
-    case appStore, googlePlay, manualGrant
+    case appStore, googlePlay, purpl, unknown
+
+    /// 이전 응답과 향후 추가될 발급처 해석
+    public init(from decoder: Decoder) throws {
+        let value = try decoder.singleValueContainer().decode(String.self)
+        self = value == "manualGrant" ? .purpl : Self(rawValue: value) ?? .unknown
+    }
 }
 
 // 고객 권한 상태
@@ -175,7 +181,7 @@ public struct CustomerInfo: Decodable, Equatable, Sendable {
         let now = Date()
         return Set(entitlements.lazy.filter { entitlement in
             guard entitlement.active else { return false }
-            guard entitlement.origin == .manualGrant, let expiresAt = entitlement.expiresAt else { return true }
+            guard entitlement.origin == .purpl, let expiresAt = entitlement.expiresAt else { return true }
             return expiresAt > now
         }.map(\.identifier))
     }
