@@ -21,11 +21,22 @@ public enum StoreEnvironment: String, Decodable, Hashable, Sendable {
     case xcode
 }
 
-/// 개별 권한이 발생한 경로
-public enum EntitlementOrigin: String, Decodable, Sendable {
-    case appStore, googlePlay, grant, unknown
+/// 권한을 제공한 채널
+public enum EntitlementStore: String, Decodable, Sendable {
+    case appStore, googlePlay, purpl, unknown
 
-    /// 서버가 반환한 권한 출처 해석
+    /// 서버가 반환한 채널 해석
+    public init(from decoder: Decoder) throws {
+        let value = try decoder.singleValueContainer().decode(String.self)
+        self = Self(rawValue: value) ?? .unknown
+    }
+}
+
+/// 사용자가 권한을 얻은 방식
+public enum EntitlementOwnershipType: String, Decodable, Sendable {
+    case purchased, granted, unknown
+
+    /// 서버가 반환한 취득 방식 해석
     public init(from decoder: Decoder) throws {
         let value = try decoder.singleValueContainer().decode(String.self)
         self = Self(rawValue: value) ?? .unknown
@@ -70,14 +81,10 @@ public enum CustomerInfoSource: Equatable, Sendable {
 // 고객에게 연결된 권한
 /// An entitlement associated with a customer.
 public struct CustomerEntitlement: Decodable, Equatable, Sendable {
-    /// 개별 이용 권한이 생긴 경로
-    public let origin: EntitlementOrigin
-
-    private enum CodingKeys: String, CodingKey {
-        case origin
-        case identifier, displayName, productIdentifier, environment, status, active
-        case startsAt, expiresAt, revokedAt, lastVerifiedAt
-    }
+    /// 권한을 제공한 채널
+    public let store: EntitlementStore
+    /// 사용자가 권한을 얻은 방식
+    public let ownershipType: EntitlementOwnershipType
 
     // 권한 식별자
     /// The entitlement identifier.
@@ -110,24 +117,6 @@ public struct CustomerEntitlement: Decodable, Equatable, Sendable {
     /// The date when the entitlement was last verified.
     public let lastVerifiedAt: Date
 
-    /// 서버 고객 권한 해석
-    public init(from decoder: Decoder) throws {
-        let fields = try decoder.container(keyedBy: CodingKeys.self)
-        self.init(
-            identifier: try fields.decode(String.self, forKey: .identifier),
-            displayName: try fields.decode(String.self, forKey: .displayName),
-            productIdentifier: try fields.decodeIfPresent(String.self, forKey: .productIdentifier),
-            environment: try fields.decode(StoreEnvironment.self, forKey: .environment),
-            status: try fields.decode(CustomerEntitlementStatus.self, forKey: .status),
-            active: try fields.decode(Bool.self, forKey: .active),
-            startsAt: try fields.decodeIfPresent(Date.self, forKey: .startsAt),
-            expiresAt: try fields.decodeIfPresent(Date.self, forKey: .expiresAt),
-            revokedAt: try fields.decodeIfPresent(Date.self, forKey: .revokedAt),
-            lastVerifiedAt: try fields.decode(Date.self, forKey: .lastVerifiedAt),
-            origin: try fields.decodeIfPresent(EntitlementOrigin.self, forKey: .origin) ?? .unknown
-        )
-    }
-
     // 고객 권한 생성
     /// Creates a customer entitlement.
     public init(
@@ -141,9 +130,11 @@ public struct CustomerEntitlement: Decodable, Equatable, Sendable {
         expiresAt: Date?,
         revokedAt: Date?,
         lastVerifiedAt: Date,
-        origin: EntitlementOrigin = .appStore
+        store: EntitlementStore = .appStore,
+        ownershipType: EntitlementOwnershipType = .purchased
     ) {
-        self.origin = origin
+        self.store = store
+        self.ownershipType = ownershipType
         self.identifier = identifier
         self.displayName = displayName
         self.productIdentifier = productIdentifier
@@ -181,7 +172,7 @@ public struct CustomerInfo: Decodable, Equatable, Sendable {
         let now = Date()
         return Set(entitlements.lazy.filter { entitlement in
             guard entitlement.active else { return false }
-            guard entitlement.origin == .grant, let expiresAt = entitlement.expiresAt else { return true }
+            guard entitlement.ownershipType == .granted, let expiresAt = entitlement.expiresAt else { return true }
             return expiresAt > now
         }.map(\.identifier))
     }

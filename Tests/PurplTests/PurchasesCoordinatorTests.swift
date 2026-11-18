@@ -12,14 +12,19 @@ import Testing
 
 /// Purpl 내부 코디네이터 테스트
 struct PurchasesCoordinatorTests {
-    /// 권한 출처와 알 수 없는 값 해석
+    /// 서버 권한의 채널·취득 방식과 미지원 값 해석
     @Test
-    func entitlementOriginDecodesCompatibleValues() throws {
+    func decodesEntitlementStoreAndOwnershipType() throws {
         let decoder = JSONDecoder()
-        for (raw, expected) in [("appStore", EntitlementOrigin.appStore), ("googlePlay", .googlePlay),
-                                ("grant", .grant), ("unknown", .unknown), ("futureIssuer", .unknown)] {
-            #expect(try decoder.decode(EntitlementOrigin.self, from: JSONEncoder().encode(raw)) == expected)
+        for store in [EntitlementStore.appStore, .googlePlay, .purpl] {
+            #expect(try decoder.decode(EntitlementStore.self, from: JSONEncoder().encode(store.rawValue)) == store)
         }
+        for ownershipType in [EntitlementOwnershipType.purchased, .granted] {
+            #expect(try decoder.decode(EntitlementOwnershipType.self, from: JSONEncoder().encode(ownershipType.rawValue)) == ownershipType)
+        }
+        let unrecognized = try JSONEncoder().encode("unrecognized")
+        #expect(try decoder.decode(EntitlementStore.self, from: unrecognized) == .unknown)
+        #expect(try decoder.decode(EntitlementOwnershipType.self, from: unrecognized) == .unknown)
     }
 
     /// 구매 없이 로그인한 계정의 이메일 전달과 수동 권한 회수·계정 전환
@@ -32,11 +37,12 @@ struct PurchasesCoordinatorTests {
             storeService: StoreKitServiceStub(verifiedTransactions: []), customerInfoPublisher: publisher)
         let grant = CustomerEntitlement(identifier: "pro", displayName: "Pro", environment: .production,
             status: .active, active: true, startsAt: nil, expiresAt: nil, revokedAt: nil,
-            lastVerifiedAt: Date(), origin: .grant)
+            lastVerifiedAt: Date(), store: .purpl, ownershipType: .granted)
         await server.setAccountGrants([grant], for: account)
         let information = try await coordinator.logIn(applicationAccountIdentifier: account, email: "review@example.com")
         #expect(information.isEntitlementActive("pro"))
-        #expect(information.entitlements.first?.origin == .grant)
+        #expect(information.entitlements.first?.store == .purpl)
+        #expect(information.entitlements.first?.ownershipType == .granted)
         #expect(await server.receivedEmail == "review@example.com")
         #expect(await server.receivedPayload()?.signedTransactions.isEmpty == true)
 

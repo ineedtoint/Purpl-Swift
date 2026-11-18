@@ -127,7 +127,9 @@ struct PurchasesServerClientTests {
                   "startsAt": "2026-07-26T01:02:03.456Z",
                   "expiresAt": null,
                   "revokedAt": null,
-                  "lastVerifiedAt": "2026-07-26T01:02:03Z"
+                  "lastVerifiedAt": "2026-07-26T01:02:03Z",
+                  "store": "appStore",
+                  "ownershipType": "purchased"
                 }
               ]
             }

@@ -486,7 +486,8 @@ actor PurchasesCoordinator {
                 startsAt: transaction.purchaseDate,
                 expiresAt: transaction.expirationDate,
                 revokedAt: transaction.revocationDate,
-                lastVerifiedAt: verificationDate
+                lastVerifiedAt: verificationDate,
+                ownershipType: transaction.ownershipType == .purchased ? .purchased : .unknown
             )
         }
         let customerInfo = CustomerInfo(
