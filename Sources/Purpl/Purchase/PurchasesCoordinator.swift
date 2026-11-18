@@ -33,6 +33,8 @@ actor PurchasesCoordinator {
 
     private var applicationAccountIdentifier: UUID?
     private var applicationAccountRevision = 0
+    private var accountEmail: String?
+    private var storeInformation: CustomerInfo?
 
     /// 자동 동기화 시작 여부
     private var started = false
@@ -171,11 +173,13 @@ actor PurchasesCoordinator {
     }
 
     /// 로그인 계정 연결과 현재 권한 재전송
-    func logIn(applicationAccountIdentifier: UUID) async throws -> CustomerInfo {
+    func logIn(applicationAccountIdentifier: UUID, email: String? = nil) async throws -> CustomerInfo {
         if self.applicationAccountIdentifier != applicationAccountIdentifier {
+            clearAccountGrants()
             self.applicationAccountIdentifier = applicationAccountIdentifier
             applicationAccountRevision += 1
         }
+        if let email { accountEmail = email }
         return try await synchronizeEntitlements(applicationAccountIdentifier: applicationAccountIdentifier).customerInfo
     }
 
@@ -183,6 +187,30 @@ actor PurchasesCoordinator {
     func logOut() {
         applicationAccountIdentifier = nil
         applicationAccountRevision += 1
+        clearAccountGrants()
+    }
+
+    /// 계정 전환 시 구매 결과만 유지
+    private func clearAccountGrants() {
+        accountEmail = nil
+        if let storeInformation { customerInfoPublisher.publish(storeInformation) }
+    }
+
+    /// 다른 계정의 응답을 배제하고 스토어 구매와 현재 계정 권한을 함께 전달
+    private func publishAccountInformation(_ store: CustomerInfo, environment: StoreEnvironment,
+                                           revision: Int) async throws -> CustomerInfo {
+        guard revision == applicationAccountRevision else { throw CancellationError() }
+        var entitlements = store.entitlements
+        if let identifier = applicationAccountIdentifier {
+            entitlements += try await serverClient.identifyAccount(identifier, email: accountEmail, environment: environment)
+        }
+        try Task.checkCancellation()
+        guard revision == applicationAccountRevision else { throw CancellationError() }
+        storeInformation = store
+        let result = CustomerInfo(source: store.source, appTransactionIdentifier: store.appTransactionIdentifier,
+                                  customerIdentifier: store.customerIdentifier, entitlements: entitlements)
+        customerInfoPublisher.publish(result)
+        return result
     }
 
     /// 현재 권한 검증과 웹훅 재전송, 같은 요청 식별자로 전달 상태 재확인
@@ -211,8 +239,9 @@ actor PurchasesCoordinator {
             appTransactionIdentifier: appTransaction.appTransactionIdentifier,
             customerIdentifier: result.customerInfo.customerIdentifier,
             entitlements: result.customerInfo.entitlements)
-        customerInfoPublisher.publish(customerInfo)
-        return EntitlementSynchronizationResult(customerInfo: customerInfo, republication: result.republication)
+        let information = try await publishAccountInformation(customerInfo, environment: Self.customerEnvironment(from: appTransaction.environment),
+            revision: accountRevision)
+        return EntitlementSynchronizationResult(customerInfo: information, republication: result.republication)
     }
 
     /// App Store 구매 내역 복원과 최신 고객 정보 확인
@@ -346,6 +375,8 @@ actor PurchasesCoordinator {
                     verifiedTransactions: verifiedTransactions,
                     applicationAccountIdentifier: applicationAccountIdentifier
                 )
+            } catch is CancellationError {
+                throw CancellationError()
             } catch let serverModeError {
                 do {
                     return try await makeStoreKitCustomerInfo(
@@ -373,6 +404,7 @@ actor PurchasesCoordinator {
         verifiedTransactions: [VerifiedStoreTransaction],
         applicationAccountIdentifier: String?
     ) async throws -> CustomerInfo {
+        let revision = applicationAccountRevision
         let payload = SignedPurchasesPayload(
             // StoreKit AppTransaction에서 현재 Apple 고객을 식별하는 검증된 JWS를 조회
             signedAppTransaction: verifiedAppTransaction.signedAppTransaction,
@@ -392,8 +424,8 @@ actor PurchasesCoordinator {
             customerIdentifier: serverCustomerInfo.customerIdentifier,
             entitlements: serverCustomerInfo.entitlements
         )
-        customerInfoPublisher.publish(customerInfo)
-        return customerInfo
+        return try await publishAccountInformation(customerInfo, environment: Self.customerEnvironment(from: verifiedAppTransaction.environment),
+            revision: revision)
     }
 
     /// 현재 StoreKit 거래와 구매 카탈로그로 로컬 고객 정보 생성
@@ -464,6 +496,7 @@ actor PurchasesCoordinator {
             entitlements: entitlements
         )
 
+        storeInformation = customerInfo
         customerInfoPublisher.publish(customerInfo)
         return customerInfo
     }

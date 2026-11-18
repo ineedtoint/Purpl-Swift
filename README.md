@@ -163,10 +163,10 @@ Purpl Swift is available under the MIT license. See [LICENSE](LICENSE) for detai
 
 ## Sign-in, restoration, and entitlement recovery
 
-After authenticating your app user, call `logIn` to link the account. Sign-in, restoration, and explicit `synchronizeEntitlements` request current entitlement webhooks even when unchanged. Ordinary `customerInfo()` does not force republication; actual entitlement changes still produce normal webhooks.
+After authenticating your app user, call `logIn` with their stable app user ID. In server modes this also registers the account before its first purchase. You can pass an email for dashboard searches. Omitting it keeps the existing email. In the dashboard, choose the application, open Customers, and grant an entitlement to the selected app user ID. The SDK includes active grants in `activeEntitlementIdentifiers`. Each entitlement's `origin` distinguishes App Store, Google Play, and manual grants. Sign-in, restoration, and explicit `synchronizeEntitlements` request current entitlement webhooks even when unchanged. Ordinary `customerInfo()` does not force republication; actual entitlement changes still produce normal webhooks.
 
 ```swift
-let customerInfo = try await Purchases.shared.logIn(applicationAccountIdentifier: accountIdentifier)
+let customerInfo = try await Purchases.shared.logIn(applicationAccountIdentifier: accountIdentifier, email: user.email)
 let restoredCustomerInfo = try await Purchases.shared.restorePurchases()
 let recovery = try await Purchases.shared.synchronizeEntitlements()
 let deliveryStatus = recovery.republication.status

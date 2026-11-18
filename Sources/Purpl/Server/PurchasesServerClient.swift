@@ -9,6 +9,9 @@ import Foundation
 
 /// Purpl 서버 클라이언트 인터페이스
 protocol PurchasesServerClientProtocol: Sendable {
+    /// 구매 전 로그인 계정의 관리자 부여 권한 조회
+    func identifyAccount(_ identifier: UUID, email: String?, environment: StoreEnvironment) async throws -> [CustomerEntitlement]
+
     /// 검증된 StoreKit 정보로 현재 고객 동기화
     func synchronizeCustomer(with payload: SignedPurchasesPayload) async throws -> CustomerInfo
 
@@ -30,6 +33,9 @@ extension PurchasesServerClientProtocol {
         throw PurchasesError.invalidServerResponse
     }
 
+    /// 구매 전 계정 조회를 사용하지 않는 테스트 서버의 기본 응답
+    func identifyAccount(_ identifier: UUID, email: String?, environment: StoreEnvironment) async throws -> [CustomerEntitlement] { [] }
+
     /// 원격 페이월을 사용하지 않는 테스트 경계의 기본 동작
     func paywall(
         paywallIdentifier: String,
@@ -44,6 +50,24 @@ extension PurchasesServerClientProtocol {
 struct PurchasesServerClient: PurchasesServerClientProtocol {
     private let serverBaseURL: URL
     private let networkTransport: any PurchasesNetworkTransportProtocol
+
+    /// 앱 범위에서 로그인 계정과 선택 이메일을 등록하고 권한 조회
+    func identifyAccount(_ identifier: UUID, email: String?, environment: StoreEnvironment) async throws -> [CustomerEntitlement] {
+        guard let bundle = Bundle.main.bundleIdentifier else { throw PurchasesError.invalidServerResponse }
+        var body = ["provider": "apple", "storeApplicationIdentifier": bundle,
+                    "environment": environment == .production ? "production" : "sandbox",
+                    "applicationAccountIdentifier": identifier.uuidString.lowercased()]
+        body["email"] = email
+        var request = URLRequest(url: serverBaseURL.appending(path: "v1/customers/account/identify"))
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONEncoder().encode(body)
+        let response = try await networkTransport.send(request)
+        guard (200..<300).contains(response.statusCode) else {
+            throw PurchasesError.unsuccessfulServerResponse(statusCode: response.statusCode, errorCode: nil)
+        }
+        return try Self.makeResponseDecoder().decode(CustomerInfo.self, from: response.data).entitlements
+    }
 
     /// Purpl 서버 클라이언트 생성
     init(

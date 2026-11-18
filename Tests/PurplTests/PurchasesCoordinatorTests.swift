@@ -12,6 +12,34 @@ import Testing
 
 /// Purpl 내부 코디네이터 테스트
 struct PurchasesCoordinatorTests {
+    /// 구매 없이 로그인한 계정의 이메일 전달과 수동 권한 회수·계정 전환
+    @Test
+    func accountGrantsFollowLoginWithoutPurchases() async throws {
+        let account = UUID()
+        let publisher = CustomerInfoStreamPublisher()
+        let server = PurchasesServerClientSpy(customerInfo: CustomerInfo(customerIdentifier: nil, entitlements: []))
+        let coordinator = PurchasesCoordinator(serverClient: server,
+            storeService: StoreKitServiceStub(verifiedTransactions: []), customerInfoPublisher: publisher)
+        let grant = CustomerEntitlement(identifier: "pro", displayName: "Pro", environment: .production,
+            status: .active, active: true, startsAt: nil, expiresAt: nil, revokedAt: nil,
+            lastVerifiedAt: Date(), origin: .manualGrant)
+        await server.setAccountGrants([grant], for: account)
+        let information = try await coordinator.logIn(applicationAccountIdentifier: account, email: "review@example.com")
+        #expect(information.isEntitlementActive("pro"))
+        #expect(information.entitlements.first?.origin == .manualGrant)
+        #expect(await server.receivedEmail == "review@example.com")
+        #expect(await server.receivedPayload()?.signedTransactions.isEmpty == true)
+
+        await server.setAccountGrants([], for: account)
+        #expect(try await !coordinator.customerInfo(applicationAccountIdentifier: nil).isEntitlementActive("pro"))
+        await server.setAccountGrants([grant], for: account)
+        _ = try await coordinator.customerInfo(applicationAccountIdentifier: nil)
+        await coordinator.logOut()
+        #expect(publisher.latestCustomerInfo?.isEntitlementActive("pro") == false)
+        #expect(try await !coordinator.logIn(applicationAccountIdentifier: UUID()).isEntitlementActive("pro"))
+        #expect(await server.receivedEmail == nil)
+    }
+
     /// 거래 변경 감시 시작만으로 고객 동기화를 요청하지 않는지 확인
     @Test
     func startDoesNotSynchronizeCustomer() async {
@@ -692,6 +720,20 @@ private struct NetworkFailurePurchasesServerClient: PurchasesServerClientProtoco
 
 /// 테스트용 Purpl 서버 요청 기록기
 private actor PurchasesServerClientSpy: PurchasesServerClientProtocol {
+    private var accountGrants: [UUID: [CustomerEntitlement]] = [:]
+    private(set) var receivedEmail: String?
+
+    /// 테스트 계정의 관리자 부여 내역 변경
+    func setAccountGrants(_ grants: [CustomerEntitlement], for account: UUID) {
+        accountGrants[account] = grants
+    }
+
+    /// 구매와 독립적인 계정 권한 조회 기록
+    func identifyAccount(_ identifier: UUID, email: String?, environment: StoreEnvironment) async throws -> [CustomerEntitlement] {
+        receivedEmail = email
+        return accountGrants[identifier] ?? []
+    }
+
     /// 준비된 고객 정보
     private let customerInfo: CustomerInfo
 

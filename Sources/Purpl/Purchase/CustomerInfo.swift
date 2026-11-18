@@ -21,6 +21,11 @@ public enum StoreEnvironment: String, Decodable, Hashable, Sendable {
     case xcode
 }
 
+/// 개별 권한이 발생한 경로
+public enum EntitlementOrigin: String, Decodable, Sendable {
+    case appStore, googlePlay, manualGrant
+}
+
 // 고객 권한 상태
 /// The current status of a customer entitlement.
 public enum CustomerEntitlementStatus: String, Decodable, Hashable, Sendable {
@@ -59,6 +64,15 @@ public enum CustomerInfoSource: Equatable, Sendable {
 // 고객에게 연결된 권한
 /// An entitlement associated with a customer.
 public struct CustomerEntitlement: Decodable, Equatable, Sendable {
+    /// 개별 이용 권한이 생긴 경로
+    public let origin: EntitlementOrigin
+
+    private enum CodingKeys: String, CodingKey {
+        case origin
+        case identifier, displayName, productIdentifier, environment, status, active
+        case startsAt, expiresAt, revokedAt, lastVerifiedAt
+    }
+
     // 권한 식별자
     /// The entitlement identifier.
     public let identifier: String
@@ -90,6 +104,24 @@ public struct CustomerEntitlement: Decodable, Equatable, Sendable {
     /// The date when the entitlement was last verified.
     public let lastVerifiedAt: Date
 
+    /// 이전 서버 응답의 App Store 구매 출처를 포함한 권한 해석
+    public init(from decoder: Decoder) throws {
+        let fields = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(
+            identifier: try fields.decode(String.self, forKey: .identifier),
+            displayName: try fields.decode(String.self, forKey: .displayName),
+            productIdentifier: try fields.decodeIfPresent(String.self, forKey: .productIdentifier),
+            environment: try fields.decode(StoreEnvironment.self, forKey: .environment),
+            status: try fields.decode(CustomerEntitlementStatus.self, forKey: .status),
+            active: try fields.decode(Bool.self, forKey: .active),
+            startsAt: try fields.decodeIfPresent(Date.self, forKey: .startsAt),
+            expiresAt: try fields.decodeIfPresent(Date.self, forKey: .expiresAt),
+            revokedAt: try fields.decodeIfPresent(Date.self, forKey: .revokedAt),
+            lastVerifiedAt: try fields.decode(Date.self, forKey: .lastVerifiedAt),
+            origin: try fields.decodeIfPresent(EntitlementOrigin.self, forKey: .origin) ?? .appStore
+        )
+    }
+
     // 고객 권한 생성
     /// Creates a customer entitlement.
     public init(
@@ -102,8 +134,10 @@ public struct CustomerEntitlement: Decodable, Equatable, Sendable {
         startsAt: Date?,
         expiresAt: Date?,
         revokedAt: Date?,
-        lastVerifiedAt: Date
+        lastVerifiedAt: Date,
+        origin: EntitlementOrigin = .appStore
     ) {
+        self.origin = origin
         self.identifier = identifier
         self.displayName = displayName
         self.productIdentifier = productIdentifier
@@ -138,7 +172,12 @@ public struct CustomerInfo: Decodable, Equatable, Sendable {
     // 현재 사용 가능한 권한 식별자
     /// The identifiers of entitlements that are currently available.
     public var activeEntitlementIdentifiers: Set<String> {
-        Set(entitlements.lazy.filter(\.active).map(\.identifier))
+        let now = Date()
+        return Set(entitlements.lazy.filter { entitlement in
+            guard entitlement.active else { return false }
+            guard entitlement.origin == .manualGrant, let expiresAt = entitlement.expiresAt else { return true }
+            return expiresAt > now
+        }.map(\.identifier))
     }
 
     // Purpl 고객 정보 생성
