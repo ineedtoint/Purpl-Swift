@@ -173,14 +173,19 @@ actor PurchasesCoordinator {
     }
 
     /// 로그인 계정 연결과 현재 권한 재전송
-    func logIn(applicationAccountIdentifier: UUID, email: String? = nil) async throws -> CustomerInfo {
+    func logIn(applicationAccountIdentifier: UUID, email: String? = nil, transferPurchases: Bool = true) async throws -> CustomerInfo {
         if self.applicationAccountIdentifier != applicationAccountIdentifier {
-            clearAccountGrants()
+            accountEmail = nil
+            if storeInformation != nil {
+                let empty = CustomerInfo(source: .server, appTransactionIdentifier: nil, customerIdentifier: nil, entitlements: [])
+                storeInformation = nil
+                customerInfoPublisher.publish(empty)
+            }
             self.applicationAccountIdentifier = applicationAccountIdentifier
             applicationAccountRevision += 1
         }
         if let email { accountEmail = email }
-        return try await synchronizeEntitlements(applicationAccountIdentifier: applicationAccountIdentifier).customerInfo
+        return try await synchronizeEntitlements(applicationAccountIdentifier: applicationAccountIdentifier, transferOnLogin: transferPurchases).customerInfo
     }
 
     /// 이후 구매와 권한 조회에서 사용할 앱 계정 연결 해제
@@ -216,7 +221,8 @@ actor PurchasesCoordinator {
     /// 현재 권한 검증과 웹훅 재전송, 같은 요청 식별자로 전달 상태 재확인
     func synchronizeEntitlements(
         applicationAccountIdentifier: UUID? = nil,
-        requestIdentifier: UUID = UUID()
+        requestIdentifier: UUID = UUID(),
+        transferOnLogin: Bool = false
     ) async throws -> EntitlementSynchronizationResult {
         let accountIdentifier = applicationAccountIdentifier ?? self.applicationAccountIdentifier
         let accountRevision = applicationAccountRevision
@@ -231,7 +237,8 @@ actor PurchasesCoordinator {
         let result = try await serverClient.republishEntitlements(with: SignedPurchasesPayload(
             signedAppTransaction: appTransaction.signedAppTransaction,
             signedTransactions: Array(Set(transactions.map(\.signedTransaction))).sorted(),
-            applicationAccountIdentifier: accountIdentifier?.uuidString.lowercased()
+            applicationAccountIdentifier: accountIdentifier?.uuidString.lowercased(),
+            transferOnLogin: transferOnLogin
         ), requestIdentifier: requestIdentifier)
         try Task.checkCancellation()
         guard accountRevision == applicationAccountRevision else { throw CancellationError() }
@@ -378,6 +385,8 @@ actor PurchasesCoordinator {
             } catch is CancellationError {
                 throw CancellationError()
             } catch let serverModeError {
+                // 로그인 계정의 구매 소유 관계는 StoreKit만으로 확인할 수 없다.
+                if applicationAccountIdentifier != nil { throw serverModeError }
                 do {
                     return try await makeStoreKitCustomerInfo(
                         verifiedTransactions: verifiedTransactions,

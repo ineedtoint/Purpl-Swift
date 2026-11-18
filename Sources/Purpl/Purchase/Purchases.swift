@@ -282,8 +282,8 @@ public final class Purchases: Sendable {
 
     /// 로그인한 앱 계정 연결과 현재 권한 웹훅 재전송
     /// 웹훅 전달은 비동기이며 이 메서드의 성공이 연동 서버의 반영 완료를 뜻하지 않는다.
-    public func logIn(applicationAccountIdentifier: UUID, email: String? = nil) async throws -> CustomerInfo {
-        try await coordinator.logIn(applicationAccountIdentifier: applicationAccountIdentifier, email: email)
+    public func logIn(applicationAccountIdentifier: UUID, email: String? = nil, transferPurchases: Bool = true) async throws -> CustomerInfo {
+        try await coordinator.logIn(applicationAccountIdentifier: applicationAccountIdentifier, email: email, transferPurchases: transferPurchases)
     }
 
     /// 이후 구매와 조회에 사용할 앱 계정 연결 해제

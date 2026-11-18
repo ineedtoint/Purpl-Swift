@@ -17,4 +17,7 @@ struct SignedPurchasesPayload: Equatable, Sendable {
 
     /// 선택 개발자 앱 내부 계정 식별자
     let applicationAccountIdentifier: String?
+
+    /// 직접 로그인으로 요청한 경우에만 구매 계정 이전
+    var transferOnLogin = false
 }

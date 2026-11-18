@@ -173,4 +173,6 @@ let deliveryStatus = recovery.republication.status
 await Purchases.shared.logOut()
 ```
 
+직접 로그인하면 검증된 구매가 해당 앱 계정으로 이전됩니다. 앱 시작 시 저장된 로그인 세션을 복원할 때는 `transferPurchases: false`를 전달하세요. 일반 권한 갱신과 구매 복구는 이미 연결된 계정을 유지합니다.
+
 `queued` means accepted for delivery, not received by your server. Reuse a `requestIdentifier` to check status without generating duplicates. Purpl retries webhook delivery failures. Explicit recovery does not hide server errors behind local entitlement fallback. Local-only modes do not send webhooks.

@@ -124,7 +124,8 @@ struct PurchasesServerClient: PurchasesServerClientProtocol {
             provider: "apple", requestIdentifier: requestIdentifier.uuidString.lowercased(),
             signedAppTransaction: payload.signedAppTransaction,
             signedTransactions: payload.signedTransactions,
-            applicationAccountIdentifier: payload.applicationAccountIdentifier
+            applicationAccountIdentifier: payload.applicationAccountIdentifier,
+            transferOnLogin: payload.transferOnLogin
         ))
         let response = try await networkTransport.send(request)
         guard (200..<300).contains(response.statusCode) else {
@@ -257,4 +258,6 @@ private struct AppleEntitlementRepublicationRequest: Encodable {
     let signedTransactions: [String]
     /// 연결할 앱 계정 식별자
     let applicationAccountIdentifier: String?
+    /// 직접 로그인으로 확인한 구매만 이전
+    let transferOnLogin: Bool
 }
