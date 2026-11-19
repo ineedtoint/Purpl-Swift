@@ -163,7 +163,7 @@ Purpl Swift is available under the MIT license. See [LICENSE](LICENSE) for detai
 
 ## Sign-in, restoration, and entitlement recovery
 
-After authenticating your app user, call `logIn` with their stable app user ID. In server modes this also registers the account before its first purchase. You can pass an email for dashboard searches. Omitting it keeps the existing email. In the dashboard, choose the application, open Customers, and grant an entitlement to the selected app user ID. The SDK includes active grants in `activeEntitlementIdentifiers`. Each entitlement exposes its channel (`store`) and how the customer obtained it (`ownershipType`). A direct purchase is `appStore` or `googlePlay` with `purchased`. A Purpl grant is `purpl` with `granted`. Unrecognized values map to `unknown`. Sign-in, restoration, and explicit `synchronizeEntitlements` request current entitlement webhooks even when unchanged. Ordinary `customerInfo()` does not force republication; actual entitlement changes still produce normal webhooks.
+After authenticating your app user, call `logIn` with their stable app user ID. In server modes this also registers the account before its first purchase. You can pass an email for dashboard searches. Omitting it keeps the existing email. In the dashboard, choose the application, open Customers → App Accounts, and grant an entitlement to the selected app user ID. The SDK includes active grants in `activeEntitlementIdentifiers`. Each entitlement exposes its channel (`store`) and how the customer obtained it (`ownershipType`). A direct purchase is `appStore` or `googlePlay` with `purchased`. A Purpl grant is `purpl` with `granted`. Unrecognized values map to `unknown`. Sign-in, restoration, and explicit `synchronizeEntitlements` request current entitlement webhooks even when unchanged. Ordinary `customerInfo()` does not force republication; actual entitlement changes still produce normal webhooks.
 
 ```swift
 let customerInfo = try await Purchases.shared.logIn(applicationAccountIdentifier: accountIdentifier, email: user.email)
@@ -173,6 +173,6 @@ let deliveryStatus = recovery.republication.status
 await Purchases.shared.logOut()
 ```
 
-직접 로그인하면 검증된 구매가 해당 앱 계정으로 이전됩니다. 앱 시작 시 저장된 로그인 세션을 복원할 때는 `transferPurchases: false`를 전달하세요. 일반 권한 갱신과 구매 복구는 이미 연결된 계정을 유지합니다.
+In server modes, signing in transfers the verified store purchase to the current app account. When restoring a saved login session at launch, pass `transferPurchases: false`. Background refresh and purchase restoration preserve the current account link.
 
 `queued` means accepted for delivery, not received by your server. Reuse a `requestIdentifier` to check status without generating duplicates. Purpl retries webhook delivery failures. Explicit recovery does not hide server errors behind local entitlement fallback. Local-only modes do not send webhooks.
