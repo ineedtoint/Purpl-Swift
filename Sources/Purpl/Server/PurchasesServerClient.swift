@@ -48,7 +48,6 @@ extension PurchasesServerClientProtocol {
 
 /// Purpl 서버 클라이언트 구현
 struct PurchasesServerClient: PurchasesServerClientProtocol {
-    private let accountAccessTokenProvider: (@Sendable (UUID, StoreEnvironment) async throws -> String)?
     private let serverBaseURL: URL
     private let networkTransport: any PurchasesNetworkTransportProtocol
 
@@ -63,11 +62,6 @@ struct PurchasesServerClient: PurchasesServerClientProtocol {
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try JSONEncoder().encode(body)
-        if let accountAccessTokenProvider {
-            // 서버가 검증할 로그인 계정과 환경에 한정한 토큰 전달
-            let token = try await accountAccessTokenProvider(identifier, environment == .production ? .production : .sandbox)
-            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        }
         let response = try await networkTransport.send(request)
         guard (200..<300).contains(response.statusCode) else {
             throw PurchasesError.unsuccessfulServerResponse(statusCode: response.statusCode, errorCode: nil)
@@ -80,7 +74,6 @@ struct PurchasesServerClient: PurchasesServerClientProtocol {
         configuration: PurchasesConfiguration,
         networkTransport: any PurchasesNetworkTransportProtocol = URLSessionPurchasesNetworkTransport()
     ) {
-        accountAccessTokenProvider = configuration.accountAccessTokenProvider
         serverBaseURL = configuration.serverBaseURL
         self.networkTransport = networkTransport
     }

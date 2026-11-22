@@ -24,8 +24,6 @@ customerInfo.activeEntitlementIdentifiers(in: .account)
 
 서버 모드에서는 앱에서 로그인한 사용자의 계정 ID를 `logIn`에 전달하세요. 계정 범위에는 같은 앱과 환경에서 해당 계정에 연결된 App Store 구매, Google Play 구매, 직접 부여한 권한 중 현재 활성인 항목이 포함됩니다. 예를 들어 iPhone에서 구독한 사용자가 Android에서 같은 앱 계정으로 로그인하면 그 구독 권한을 받습니다. 로그아웃하면 계정 범위가 비워집니다. 계정 ID를 아는 호출자는 권한을 조회할 수 있으므로 추측하기 어려운 내부 ID를 사용하세요.
 
-`accountAccessTokenProvider`는 선택 사항입니다. 사용하는 경우 앱 개발자의 백엔드가 로그인 세션에서 계정을 확인하고 서버 전용 `entitlements:read` 자격 증명과 계정 ID, 환경으로 `POST /v1/customers/account/access-token`을 호출합니다. Purpl이 발급한 `accessToken`을 SDK에 반환하세요. Purpl은 요청에 포함된 토큰을 검증하고 유효하지 않으면 요청을 거부합니다. 토큰을 생략한 요청은 계정 ID로 조회합니다.
-
 ## 설치
 
 Xcode의 **Package Dependencies**에 다음 저장소 주소를 추가합니다.

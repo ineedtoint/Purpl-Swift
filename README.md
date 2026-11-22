@@ -24,8 +24,6 @@ customerInfo.activeEntitlementIdentifiers(in: .account)
 
 In server-backed modes, pass the signed-in user's app account ID to `logIn`. Account scope includes active App Store purchases, Google Play purchases, and direct grants linked to that account in the same app and environment. For example, a user who subscribed on iPhone can access that entitlement on Android by signing in to the same app account. Signing out clears account scope. Anyone who knows the account ID can request its entitlements, so use an opaque, hard-to-guess ID.
 
-`accountAccessTokenProvider` is optional. If you configure it, your backend identifies the user from its authenticated session and calls `POST /v1/customers/account/access-token` with its server-side `entitlements:read` credential, the account ID, and the environment. Return the Purpl-issued `accessToken` to the SDK. Purpl verifies any supplied token and rejects invalid tokens. Requests without a token still use account ID lookup.
-
 ## Installation
 
 Add the following repository URL in Xcode under **Package Dependencies**.

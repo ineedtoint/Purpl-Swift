@@ -39,17 +39,12 @@ struct PurchasesConfiguration: Sendable {
     /// 고객 권한 확인 방식
     let entitlementMode: EntitlementMode
 
-    /// 로그인 계정과 환경에 한정된 단기 조회 토큰 제공
-    let accountAccessTokenProvider: (@Sendable (UUID, StoreEnvironment) async throws -> String)?
-
     /// Purpl 서버 연결 설정 생성
     init(
         serverBaseURL: URL = Self.productionServerBaseURL,
         purchaseConfiguration: PurchaseConfiguration? = nil,
-        entitlementMode: EntitlementMode = .server,
-        accountAccessTokenProvider: (@Sendable (UUID, StoreEnvironment) async throws -> String)? = nil
+        entitlementMode: EntitlementMode = .server
     ) {
-        self.accountAccessTokenProvider = accountAccessTokenProvider
         self.serverBaseURL = serverBaseURL
         self.purchaseConfiguration = purchaseConfiguration
         self.entitlementMode = entitlementMode
