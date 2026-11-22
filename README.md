@@ -12,6 +12,18 @@ You can use every core feature with local configuration, without adopting the Pu
 - iOS 26+
 - macOS 26+
 
+## Entitlement scopes
+
+The default property returns the union of active identifiers for the current store and signed-in app account.
+
+```swift
+customerInfo.activeEntitlementIdentifiers
+customerInfo.activeEntitlementIdentifiers(in: .store)
+customerInfo.activeEntitlementIdentifiers(in: .account)
+```
+
+In server-backed modes, configure `accountAccessTokenProvider` to include purchases from other stores. Your backend resolves the account from **its authenticated session**, calls `POST /v1/customers/account/access-token` with its `entitlements:read` credential and sends `applicationAccountIdentifier` and `environment` (production/sandbox). Return the resulting `accessToken` to the SDK. Cache it per account and environment until `expiresAt`. Without a provider, account scope contains direct grants and purchases verified as linked on the current device. Signing out clears the account scope.
+
 ## Installation
 
 Add the following repository URL in Xcode under **Package Dependencies**.

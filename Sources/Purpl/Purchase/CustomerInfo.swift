@@ -21,6 +21,14 @@ public enum StoreEnvironment: String, Decodable, Hashable, Sendable {
     case xcode
 }
 
+/// 권한을 확인한 범위
+public enum EntitlementScope: Hashable, Sendable {
+    /// 현재 App Store 구매에서 확인한 권한
+    case store
+    /// 로그인한 앱 계정에서 확인한 권한
+    case account
+}
+
 /// 권한을 제공한 채널
 public enum EntitlementStore: String, Decodable, Sendable {
     case appStore, googlePlay, purpl, unknown
@@ -117,6 +125,15 @@ public struct CustomerEntitlement: Decodable, Equatable, Sendable {
     /// The date when the entitlement was last verified.
     public let lastVerifiedAt: Date
 
+    /// 이번 조회에서 이 권한을 확인한 범위
+    public internal(set) var scopes: Set<EntitlementScope> = [.store]
+
+    /// 서버 권한 원본 필드
+    private enum CodingKeys: String, CodingKey {
+        case identifier, displayName, productIdentifier, environment, status, active
+        case startsAt, expiresAt, revokedAt, lastVerifiedAt, store, ownershipType
+    }
+
     // 고객 권한 생성
     /// Creates a customer entitlement.
     public init(
@@ -133,6 +150,7 @@ public struct CustomerEntitlement: Decodable, Equatable, Sendable {
         store: EntitlementStore = .appStore,
         ownershipType: EntitlementOwnershipType = .purchased
     ) {
+        self.scopes = ownershipType == .granted ? [.account] : [.store]
         self.store = store
         self.ownershipType = ownershipType
         self.identifier = identifier
@@ -164,17 +182,50 @@ public struct CustomerInfo: Decodable, Equatable, Sendable {
     public let customerIdentifier: String?
     // 고객에게 연결된 권한 목록
     /// The entitlements associated with the customer.
-    public let entitlements: [CustomerEntitlement]
+    public private(set) var entitlements: [CustomerEntitlement]
 
-    // 현재 사용 가능한 권한 식별자
-    /// The identifiers of entitlements that are currently available.
+    /// 현재 스토어와 로그인 계정 중 하나에서 활성인 권한 식별자
     public var activeEntitlementIdentifiers: Set<String> {
+        activeIdentifiers(in: entitlements)
+    }
+
+    /// 지정한 범위에서 확인한 권한 목록
+    public func entitlements(in scope: EntitlementScope) -> [CustomerEntitlement] {
+        entitlements.filter { $0.scopes.contains(scope) }
+    }
+
+    /// 지정한 범위에서 활성인 권한 식별자
+    public func activeEntitlementIdentifiers(in scope: EntitlementScope) -> Set<String> {
+        activeIdentifiers(in: entitlements(in: scope), scope: scope)
+    }
+
+    /// 현재 시각의 활성 권한 식별자 계산
+    private func activeIdentifiers(in entries: [CustomerEntitlement], scope: EntitlementScope? = nil) -> Set<String> {
         let now = Date()
-        return Set(entitlements.lazy.filter { entitlement in
+        return Set(entries.lazy.filter { entitlement in
             guard entitlement.active else { return false }
-            guard entitlement.ownershipType == .granted, let expiresAt = entitlement.expiresAt else { return true }
-            return expiresAt > now
+            if entitlement.ownershipType == .granted ||
+                ((scope == .account || entitlement.scopes == [.account]) && entitlement.status != .gracePeriod) {
+                return entitlement.expiresAt.map { $0 > now } ?? true
+            }
+            return true
         }.map(\.identifier))
+    }
+
+    /// 스토어 결과에 계정 권한을 결합하고 같은 원본의 범위를 병합
+    mutating func includeAccountEntitlements(_ entries: [CustomerEntitlement]) {
+        for var entry in entries {
+            entry.scopes = [.account]
+            if let index = entitlements.firstIndex(where: { existing in
+                var original = existing
+                original.scopes = [.account]
+                return original == entry
+            }) {
+                entitlements[index].scopes.insert(.account)
+            } else {
+                entitlements.append(entry)
+            }
+        }
     }
 
     // Purpl 고객 정보 생성
@@ -207,10 +258,13 @@ public struct CustomerInfo: Decodable, Equatable, Sendable {
             String.self,
             forKey: .customerIdentifier
         )
-        entitlements = try container.decode(
-            [CustomerEntitlement].self,
-            forKey: .entitlements
-        )
+        let entries = try container.decodeIfPresent([CustomerEntitlement].self, forKey: .verifiedStoreEntitlements)
+            ?? container.decode([CustomerEntitlement].self, forKey: .entitlements)
+        entitlements = entries.map { entry in
+            var result = entry
+            result.scopes = entry.ownershipType == .granted ? [.account] : [.store]
+            return result
+        }
     }
 
     // 지정한 권한을 현재 사용할 수 있는지 확인
@@ -227,6 +281,6 @@ public struct CustomerInfo: Decodable, Equatable, Sendable {
         case customerIdentifier
 
         /// 고객에게 연결된 권한 목록
-        case entitlements
+        case entitlements, verifiedStoreEntitlements
     }
 }

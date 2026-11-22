@@ -203,17 +203,20 @@ actor PurchasesCoordinator {
 
     /// 다른 계정의 응답을 배제하고 스토어 구매와 현재 계정 권한을 함께 전달
     private func publishAccountInformation(_ store: CustomerInfo, environment: StoreEnvironment,
-                                           revision: Int) async throws -> CustomerInfo {
+                                           requestedAccount: String?, revision: Int) async throws -> CustomerInfo {
         guard revision == applicationAccountRevision else { throw CancellationError() }
-        var entitlements = store.entitlements
+        var result = store
         if let identifier = applicationAccountIdentifier {
-            entitlements += try await serverClient.identifyAccount(identifier, email: accountEmail, environment: environment)
+            let entries = try await serverClient.identifyAccount(identifier, email: accountEmail, environment: environment)
+            // 이 계정으로 요청한 스토어 구매가 서버에서 연결되었을 때 두 범위에 포함
+            if store.customerIdentifier != nil && requestedAccount == identifier.uuidString.lowercased() {
+                result.includeAccountEntitlements(store.entitlements)
+            }
+            result.includeAccountEntitlements(entries)
         }
         try Task.checkCancellation()
         guard revision == applicationAccountRevision else { throw CancellationError() }
         storeInformation = store
-        let result = CustomerInfo(source: store.source, appTransactionIdentifier: store.appTransactionIdentifier,
-                                  customerIdentifier: store.customerIdentifier, entitlements: entitlements)
         customerInfoPublisher.publish(result)
         return result
     }
@@ -247,7 +250,7 @@ actor PurchasesCoordinator {
             customerIdentifier: result.customerInfo.customerIdentifier,
             entitlements: result.customerInfo.entitlements)
         let information = try await publishAccountInformation(customerInfo, environment: Self.customerEnvironment(from: appTransaction.environment),
-            revision: accountRevision)
+            requestedAccount: accountIdentifier?.uuidString.lowercased(), revision: accountRevision)
         return EntitlementSynchronizationResult(customerInfo: information, republication: result.republication)
     }
 
@@ -434,7 +437,7 @@ actor PurchasesCoordinator {
             entitlements: serverCustomerInfo.entitlements
         )
         return try await publishAccountInformation(customerInfo, environment: Self.customerEnvironment(from: verifiedAppTransaction.environment),
-            revision: revision)
+            requestedAccount: applicationAccountIdentifier, revision: revision)
     }
 
     /// 현재 StoreKit 거래와 구매 카탈로그로 로컬 고객 정보 생성

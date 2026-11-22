@@ -27,6 +27,29 @@ struct PurchasesCoordinatorTests {
         #expect(try decoder.decode(EntitlementOwnershipType.self, from: unrecognized) == .unknown)
     }
 
+    /// 동일 구매의 양쪽 범위와 다른 스토어 구매 및 계정 전환
+    @Test
+    func scopedPurchaseEntitlements() async throws {
+        let purchase = CustomerEntitlement(identifier: "access", displayName: "Access", environment: .production,
+            status: .active, active: true, startsAt: nil, expiresAt: nil, revokedAt: nil, lastVerifiedAt: Date())
+        let other = CustomerEntitlement(identifier: "export", displayName: "Export", environment: .production,
+            status: .active, active: true, startsAt: nil, expiresAt: nil, revokedAt: nil, lastVerifiedAt: Date(), store: .googlePlay)
+        let server = PurchasesServerClientSpy(customerInfo: CustomerInfo(customerIdentifier: "store", entitlements: [purchase]))
+        let publisher = CustomerInfoStreamPublisher()
+        let coordinator = PurchasesCoordinator(serverClient: server, storeService: StoreKitServiceStub(verifiedTransactions: []),
+                                              customerInfoPublisher: publisher)
+        let account = UUID()
+        await server.setAccountGrants([purchase, other], for: account)
+        let info = try await coordinator.logIn(applicationAccountIdentifier: account)
+        #expect(info.entitlements.count == 2)
+        #expect(info.activeEntitlementIdentifiers == ["access", "export"])
+        #expect(info.activeEntitlementIdentifiers(in: .store) == ["access"])
+        #expect(info.activeEntitlementIdentifiers(in: .account) == ["access", "export"])
+        await coordinator.logOut()
+        #expect(publisher.latestCustomerInfo?.activeEntitlementIdentifiers == ["access"])
+        #expect(publisher.latestCustomerInfo?.activeEntitlementIdentifiers(in: .account) == [])
+    }
+
     /// 구매 없이 로그인한 계정의 이메일 전달과 수동 권한 회수·계정 전환
     @Test
     func accountGrantsFollowLoginWithoutPurchases() async throws {
@@ -40,6 +63,8 @@ struct PurchasesCoordinatorTests {
             lastVerifiedAt: Date(), store: .purpl, ownershipType: .granted)
         await server.setAccountGrants([grant], for: account)
         let information = try await coordinator.logIn(applicationAccountIdentifier: account, email: "review@example.com")
+        #expect(information.activeEntitlementIdentifiers(in: .store).isEmpty)
+        #expect(information.activeEntitlementIdentifiers(in: .account) == ["pro"])
         #expect(information.isEntitlementActive("pro"))
         #expect(information.entitlements.first?.store == .purpl)
         #expect(information.entitlements.first?.ownershipType == .granted)

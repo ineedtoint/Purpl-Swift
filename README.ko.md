@@ -12,6 +12,18 @@ Purpl 관리 서비스를 사용하지 않아도 로컬 구성만으로 모든 �
 - iOS 26+
 - macOS 26+
 
+## 권한 범위
+
+기본 프로퍼티는 현재 스토어와 로그인 계정의 활성 권한 ID를 합칩니다.
+
+```swift
+customerInfo.activeEntitlementIdentifiers
+customerInfo.activeEntitlementIdentifiers(in: .store)
+customerInfo.activeEntitlementIdentifiers(in: .account)
+```
+
+서버 모드에서 다른 스토어 구매까지 사용하려면 설정의 `accountAccessTokenProvider`에서 로그인한 사용자와 환경에 맞는 단기 토큰을 반환하세요. 개발자 서버는 **자체 로그인 세션**으로 계정을 확인한 뒤 `entitlements:read` 자격 증명으로 Purpl의 `POST /v1/customers/account/access-token`을 호출합니다. 본문은 `applicationAccountIdentifier`와 `environment`(production/sandbox)입니다. 응답의 `accessToken`은 `expiresAt`까지 계정·환경별로 재사용할 수 있습니다. 제공자가 없으면 계정 범위에는 직접 부여와 현재 기기에서 계정 연결이 확인된 구매가 포함됩니다. 로그아웃하면 계정 범위는 비어 있습니다.
+
 ## 설치
 
 Xcode의 **Package Dependencies**에 다음 저장소 주소를 추가합니다.

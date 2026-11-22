@@ -85,7 +85,8 @@ public final class Purchases: Sendable {
     @discardableResult
     public static func configure(
         _ purchaseConfiguration: PurchaseConfiguration? = nil,
-        entitlementMode: EntitlementMode
+        entitlementMode: EntitlementMode,
+        accountAccessTokenProvider: (@Sendable (UUID, StoreEnvironment) async throws -> String)? = nil
     ) -> Purchases {
         if entitlementMode != .server {
             precondition(
@@ -96,7 +97,8 @@ public final class Purchases: Sendable {
 
         let purchases = Purchases(configuration: PurchasesConfiguration(
             purchaseConfiguration: purchaseConfiguration,
-            entitlementMode: entitlementMode
+            entitlementMode: entitlementMode,
+            accountAccessTokenProvider: accountAccessTokenProvider
         ))
 
         sharedStorage.withLock { configuredPurchases in
